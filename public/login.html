@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LiteGuard VPS · Login</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{--bg:#030a0f;--card:#070e18;--border:#0e3a55;--cyan:#00e5ff;--green:#00ff88;--red:#ff3d5a;--text:#e0f7ff;--muted:#2a5570}
+  body{background:var(--bg);font-family:'Exo 2',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden;color:var(--text)}
+  body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,229,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,0.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none}
+  body::after{content:'';position:fixed;top:-200px;left:50%;transform:translateX(-50%);width:800px;height:600px;background:radial-gradient(ellipse,rgba(0,229,255,0.07) 0%,transparent 70%);pointer-events:none}
+  .wrap{position:relative;z-index:1;width:100%;max-width:400px;padding:20px;animation:up .5s ease both}
+  @keyframes up{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+  .logo{text-align:center;margin-bottom:32px}
+  .logo-icon{width:60px;height:60px;border:1.5px solid var(--cyan);border-radius:14px;display:inline-flex;align-items:center;justify-content:center;margin-bottom:14px;box-shadow:0 0 30px rgba(0,229,255,0.2),inset 0 0 20px rgba(0,229,255,0.05)}
+  .logo-icon svg{width:28px;height:28px}
+  h1{font-size:1.4rem;font-weight:700;color:var(--cyan);text-shadow:0 0 20px rgba(0,229,255,0.4);letter-spacing:.1em;text-transform:uppercase}
+  .sub{font-family:'Share Tech Mono',monospace;font-size:.65rem;color:var(--muted);letter-spacing:.2em;text-transform:uppercase;margin-top:4px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:32px;position:relative;overflow:hidden}
+  .card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--cyan),transparent);opacity:.4}
+  .field{margin-bottom:18px}
+  .field label{display:block;font-family:'Share Tech Mono',monospace;font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}
+  .field label::before{content:'// ';color:var(--cyan);opacity:.6}
+  .field input{width:100%;background:rgba(0,229,255,0.03);border:1px solid var(--border);border-radius:9px;padding:12px 15px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:.85rem;outline:none;transition:border-color .3s,box-shadow .3s}
+  .field input:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(0,229,255,0.08)}
+  .field input::placeholder{color:var(--muted)}
+  .btn{width:100%;background:linear-gradient(135deg,rgba(0,229,255,0.15),rgba(0,229,255,0.05));border:1px solid var(--cyan);border-radius:9px;padding:13px;color:var(--cyan);font-family:'Exo 2',sans-serif;font-size:.85rem;font-weight:600;letter-spacing:.15em;text-transform:uppercase;cursor:pointer;transition:all .3s;margin-top:6px}
+  .btn:hover{background:linear-gradient(135deg,rgba(0,229,255,0.25),rgba(0,229,255,0.1));box-shadow:0 0 20px rgba(0,229,255,0.2)}
+  .err{display:none;background:rgba(255,61,90,0.1);border:1px solid rgba(255,61,90,0.3);border-radius:8px;padding:9px 13px;font-family:'Share Tech Mono',monospace;font-size:.68rem;color:var(--red);letter-spacing:.05em;margin-top:14px;text-align:center}
+  .err.show{display:block;animation:up .3s ease}
+  .hint{text-align:center;margin-top:18px;font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--muted);letter-spacing:.1em}
+  .scan{position:fixed;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(0,229,255,0.07),transparent);animation:scan 5s linear infinite;pointer-events:none;z-index:999}
+  @keyframes scan{from{transform:translateY(-5px)}to{transform:translateY(100vh)}}
+</style>
+</head>
+<body>
+<div class="scan"></div>
+<div class="wrap">
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#00e5ff" stroke-width="1.5" stroke-linecap="round">
+        <rect x="2" y="3" width="20" height="14" rx="2"/>
+        <path d="M8 21h8M12 17v4"/>
+        <polyline points="7 8 9 11 12 7 14 9 16 6"/>
+      </svg>
+    </div>
+    <h1>LiteGuard</h1>
+    <div class="sub">VPS Desktop UI · Secure Access</div>
+  </div>
+  <div class="card">
+    <div class="field"><label>Username</label><input type="text" id="u" placeholder="admin" autofocus autocomplete="off"></div>
+    <div class="field"><label>Password</label><input type="password" id="p" placeholder="••••••••"></div>
+    <button class="btn" id="btn" onclick="login()">Authenticate →</button>
+    <div class="err" id="err">⚠ Invalid credentials. Access denied.</div>
+  </div>
+  <div class="hint">Session expires in 24 hours · Secure connection</div>
+</div>
+<script>
+  document.addEventListener('keydown',e=>{ if(e.key==='Enter') login(); });
+  async function login(){
+    const btn=document.getElementById('btn');
+    const err=document.getElementById('err');
+    const u=document.getElementById('u').value.trim();
+    const p=document.getElementById('p').value;
+    if(!u||!p){err.textContent='⚠ Please fill all fields.';err.classList.add('show');return;}
+    btn.textContent='Authenticating...';btn.style.opacity='.7';btn.style.pointerEvents='none';
+    err.classList.remove('show');
+    try{
+      const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
+      const d=await r.json();
+      if(d.success){btn.textContent='✓ Access Granted';btn.style.color='#00ff88';btn.style.borderColor='#00ff88';setTimeout(()=>location.href='/',500);}
+      else{btn.textContent='Authenticate →';btn.style.opacity='1';btn.style.pointerEvents='auto';err.textContent='⚠ Invalid credentials. Access denied.';err.classList.add('show');document.getElementById('p').value='';}
+    }catch{btn.textContent='Authenticate →';btn.style.opacity='1';btn.style.pointerEvents='auto';err.textContent='⚠ Server error.';err.classList.add('show');}
+  }
+</script>
+</body>
+</html>

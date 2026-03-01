@@ -1,0 +1,2186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LiteGuard VPS UI</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/xterm/5.3.0/xterm.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xterm/5.3.0/xterm.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xterm/5.3.0/addon-fit.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+:root{
+  --bg:#040c14;--desk:#050d17;--taskbar:#040c14;--win:#070f1a;
+  --win-header:#0a1624;--border:#0d3348;--border-hi:#1a6080;
+  --cyan:#00e5ff;--green:#00ff88;--amber:#ffb300;--red:#ff3d5a;--purple:#a855f7;
+  --text:#ddf2ff;--secondary:#4a7a96;--muted:#1e4560;--muted2:#2a5f80;
+  --glow-c:0 0 20px rgba(0,229,255,0.3);--glow-g:0 0 20px rgba(0,255,136,0.3);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-font-smoothing:antialiased}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--desk);color:var(--text);font-family:'Exo 2',sans-serif;user-select:none}
+
+/* ── DESKTOP ── */
+#desktop{
+  position:fixed;inset:0 0 48px 0;
+  background:radial-gradient(ellipse at 20% 50%,rgba(0,229,255,0.04) 0%,transparent 60%),
+             radial-gradient(ellipse at 80% 20%,rgba(0,255,136,0.03) 0%,transparent 60%),
+             #040c14;
+  overflow:hidden;
+}
+#desktop::before{
+  content:'';position:absolute;inset:0;
+  background-image:linear-gradient(rgba(0,229,255,0.02) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(0,229,255,0.02) 1px,transparent 1px);
+  background-size:50px 50px;pointer-events:none;
+}
+
+/* ── DESKTOP ICONS ── */
+.desk-icons{
+  position:absolute;top:20px;left:20px;
+  display:flex;flex-direction:column;gap:8px;
+}
+.desk-icon{
+  width:72px;display:flex;flex-direction:column;align-items:center;gap:5px;
+  padding:8px 4px;border-radius:10px;cursor:pointer;
+  transition:background .15s;
+}
+.desk-icon:hover{background:rgba(0,229,255,0.08);}
+.desk-icon.active{background:rgba(0,229,255,0.12);}
+.desk-icon-img{
+  width:40px;height:40px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.4rem;
+  border:1px solid rgba(255,255,255,0.08);
+}
+.desk-icon-label{font-size:.6rem;font-family:'Share Tech Mono',monospace;letter-spacing:.05em;color:var(--secondary);text-align:center;word-break:break-word;}
+
+/* ── TASKBAR ── */
+#taskbar{
+  position:fixed;bottom:0;left:0;right:0;height:48px;
+  background:rgba(4,12,20,0.95);
+  border-top:1px solid var(--border);
+  backdrop-filter:blur(20px);
+  display:flex;align-items:center;gap:0;z-index:9999;
+  padding:0 12px;
+}
+.tb-logo{
+  display:flex;align-items:center;gap:8px;padding:0 12px;border-right:1px solid var(--border);margin-right:8px;
+}
+.tb-logo-icon{width:28px;height:28px;border:1px solid var(--cyan);border-radius:6px;display:flex;align-items:center;justify-content:center;box-shadow:var(--glow-c);}
+.tb-logo-icon svg{width:14px;height:14px;}
+.tb-logo span{font-size:.75rem;font-weight:700;color:var(--cyan);letter-spacing:.08em;text-transform:uppercase;}
+.tb-apps{display:flex;align-items:center;gap:3px;flex:1;overflow-x:auto;}
+.tb-apps::-webkit-scrollbar{display:none;}
+.tb-btn{
+  display:flex;align-items:center;gap:6px;
+  padding:5px 12px;border-radius:7px;
+  background:transparent;border:none;
+  color:var(--secondary);font-family:'Exo 2',sans-serif;
+  font-size:.72rem;font-weight:600;letter-spacing:.05em;
+  cursor:pointer;transition:all .15s;white-space:nowrap;
+  border:1px solid transparent;
+}
+.tb-btn:hover{background:rgba(0,229,255,0.08);color:var(--text);}
+.tb-btn.open{background:rgba(0,229,255,0.1);color:var(--cyan);border-color:rgba(0,229,255,0.15);}
+.tb-btn .tb-icon{font-size:.85rem;}
+.tb-btn .tb-dot{width:4px;height:4px;border-radius:50%;background:var(--cyan);margin-top:2px;display:none;}
+.tb-btn.open .tb-dot{display:block;}
+.tb-right{display:flex;align-items:center;gap:12px;padding-left:12px;border-left:1px solid var(--border);}
+.tb-stat{display:flex;flex-direction:column;align-items:center;gap:1px;}
+.tb-stat-val{font-family:'Share Tech Mono',monospace;font-size:.65rem;color:var(--cyan);line-height:1;}
+.tb-stat-lbl{font-family:'Share Tech Mono',monospace;font-size:.5rem;color:var(--muted2);letter-spacing:.1em;text-transform:uppercase;}
+.tb-clock{font-family:'Share Tech Mono',monospace;font-size:.75rem;color:var(--text);letter-spacing:.05em;}
+.tb-user{display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 8px;border-radius:6px;transition:background .15s;}
+.tb-user:hover{background:rgba(0,229,255,0.08);}
+.tb-user-avatar{width:24px;height:24px;border-radius:50%;background:rgba(0,229,255,0.15);border:1px solid var(--cyan);display:flex;align-items:center;justify-content:center;font-size:.6rem;color:var(--cyan);}
+.tb-user-name{font-size:.68rem;color:var(--secondary);font-family:'Share Tech Mono',monospace;}
+
+/* ── SYSBAR (top) ── */
+#sysbar{
+  position:fixed;top:0;left:0;right:0;height:28px;
+  background:rgba(4,12,20,0.9);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:20px;
+  padding:0 80px 0 20px;z-index:9998;overflow:hidden;
+}
+.sb-item{display:flex;align-items:center;gap:5px;font-family:'Share Tech Mono',monospace;font-size:.58rem;white-space:nowrap;}
+.sb-lbl{color:var(--muted2);letter-spacing:.15em;text-transform:uppercase;}
+.sb-val{color:var(--cyan);}
+
+/* ── WINDOWS ── */
+.window{
+  position:absolute;
+  background:var(--win);
+  border:1px solid var(--border-hi);
+  border-radius:12px;
+  box-shadow:0 20px 60px rgba(0,0,0,0.6),0 0 0 1px rgba(0,229,255,0.05);
+  display:flex;flex-direction:column;
+  min-width:320px;min-height:200px;
+  overflow:hidden;
+  transition:box-shadow .2s;
+}
+.window.focused{
+  border-color:rgba(0,229,255,0.3);
+  box-shadow:0 20px 60px rgba(0,0,0,0.8),0 0 30px rgba(0,229,255,0.08),0 0 0 1px rgba(0,229,255,0.1);
+  z-index:100;
+}
+.win-header{
+  background:var(--win-header);
+  border-bottom:1px solid var(--border);
+  padding:0 14px;height:38px;
+  display:flex;align-items:center;gap:10px;
+  cursor:move;flex-shrink:0;
+}
+.win-dots{display:flex;gap:6px;align-items:center;}
+.wd{width:12px;height:12px;border-radius:50%;cursor:pointer;transition:filter .15s;}
+.wd:hover{filter:brightness(1.3);}
+.wd-r{background:#ff5f57;}
+.wd-y{background:#febc2e;}
+.wd-g{background:#28c840;}
+.win-title{flex:1;font-size:.75rem;font-weight:600;letter-spacing:.06em;color:var(--secondary);font-family:'Share Tech Mono',monospace;text-align:center;margin-left:-60px;}
+.win-body{flex:1;overflow:hidden;display:flex;flex-direction:column;}
+
+/* ── RESIZE HANDLE ── */
+.resize-handle{position:absolute;right:0;bottom:0;width:16px;height:16px;cursor:se-resize;z-index:10;}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border-hi);border-radius:99px}
+
+/* ── GENERIC PANEL ── */
+.panel{flex:1;overflow-y:auto;padding:16px;}
+.panel-row{display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;}
+.mini-card{
+  background:rgba(0,0,0,0.2);border:1px solid var(--border);
+  border-radius:10px;padding:14px;flex:1;min-width:100px;
+  position:relative;overflow:hidden;
+}
+.mini-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,229,255,0.2),transparent);}
+.mc-label{font-family:'Share Tech Mono',monospace;font-size:.56rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted2);margin-bottom:6px;}
+.mc-label::before{content:'// ';color:var(--cyan);opacity:.5;}
+.mc-val{font-family:'Share Tech Mono',monospace;font-size:1.3rem;color:var(--cyan);line-height:1;}
+.mc-sub{font-size:.6rem;color:var(--secondary);margin-top:3px;}
+.section-title{font-family:'Share Tech Mono',monospace;font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted2);margin-bottom:10px;margin-top:4px;}
+.section-title::before{content:'// ';color:var(--cyan);opacity:.5;}
+
+/* ── TABLE ── */
+.tbl{width:100%;border-collapse:collapse;}
+.tbl th{font-family:'Share Tech Mono',monospace;font-size:.55rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted2);padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);}
+.tbl td{padding:9px 10px;font-size:.78rem;border-bottom:1px solid rgba(13,51,72,0.4);}
+.tbl tr:last-child td{border-bottom:none;}
+.tbl tr:hover td{background:rgba(0,229,255,0.03);}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:99px;font-family:'Share Tech Mono',monospace;font-size:.6rem;letter-spacing:.05em;}
+.badge-green{background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.25);color:var(--green);}
+.badge-red{background:rgba(255,61,90,0.1);border:1px solid rgba(255,61,90,0.25);color:var(--red);}
+.badge-amber{background:rgba(255,179,0,0.1);border:1px solid rgba(255,179,0,0.25);color:var(--amber);}
+.badge-cyan{background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.25);color:var(--cyan);}
+.bdot{width:5px;height:5px;border-radius:50%;background:currentColor;}
+
+/* ── BUTTONS ── */
+.btn{
+  padding:6px 14px;border-radius:7px;border:1px solid var(--border-hi);
+  background:transparent;color:var(--secondary);
+  font-family:'Share Tech Mono',monospace;font-size:.62rem;letter-spacing:.08em;
+  cursor:pointer;transition:all .2s;white-space:nowrap;
+}
+.btn:hover{border-color:var(--cyan);color:var(--cyan);}
+.btn-danger:hover{border-color:var(--red);color:var(--red);}
+.btn-green:hover{border-color:var(--green);color:var(--green);}
+.btn-primary{border-color:var(--cyan);color:var(--cyan);background:rgba(0,229,255,0.08);}
+.btn-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+
+/* ── INPUT ── */
+.inp{
+  background:rgba(0,0,0,0.3);border:1px solid var(--border);
+  border-radius:7px;padding:7px 12px;color:var(--text);
+  font-family:'Share Tech Mono',monospace;font-size:.75rem;
+  outline:none;transition:border-color .2s,box-shadow .2s;
+}
+.inp:focus{border-color:var(--cyan);box-shadow:0 0 0 2px rgba(0,229,255,0.08);}
+.inp::placeholder{color:var(--muted2);}
+.select{
+  background:rgba(0,0,0,0.3);border:1px solid var(--border);
+  border-radius:7px;padding:7px 12px;color:var(--text);
+  font-family:'Share Tech Mono',monospace;font-size:.72rem;outline:none;
+}
+
+/* ── FILE MANAGER ── */
+.fm-toolbar{
+  display:flex;align-items:center;gap:8px;padding:8px 12px;
+  border-bottom:1px solid var(--border);flex-shrink:0;
+  background:rgba(0,0,0,0.2);flex-wrap:wrap;
+}
+.fm-path{
+  flex:1;font-family:'Share Tech Mono',monospace;font-size:.72rem;
+  color:var(--cyan);letter-spacing:.05em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.fm-grid{flex:1;overflow-y:auto;padding:12px;}
+.fm-items{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;}
+.fm-item{
+  display:flex;flex-direction:column;align-items:center;gap:5px;
+  padding:10px 6px;border-radius:9px;cursor:pointer;
+  transition:background .15s;border:1px solid transparent;
+}
+.fm-item:hover{background:rgba(0,229,255,0.07);border-color:rgba(0,229,255,0.15);}
+.fm-item.selected{background:rgba(0,229,255,0.12);border-color:rgba(0,229,255,0.25);}
+.fm-icon{font-size:1.8rem;line-height:1;}
+.fm-name{font-size:.6rem;font-family:'Share Tech Mono',monospace;color:var(--secondary);text-align:center;word-break:break-all;max-width:85px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+.fm-list{display:flex;flex-direction:column;gap:1px;}
+.fm-row{
+  display:grid;grid-template-columns:24px 1fr 80px 120px 100px;
+  align-items:center;gap:8px;padding:6px 10px;border-radius:6px;cursor:pointer;
+  transition:background .15s;
+}
+.fm-row:hover{background:rgba(0,229,255,0.06);}
+.fm-row.selected{background:rgba(0,229,255,0.1);}
+.fm-row-icon{font-size:.9rem;}
+.fm-row-name{font-size:.75rem;font-family:'Share Tech Mono',monospace;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.fm-row-size{font-size:.65rem;font-family:'Share Tech Mono',monospace;color:var(--muted2);text-align:right;}
+.fm-row-date{font-size:.62rem;font-family:'Share Tech Mono',monospace;color:var(--muted2);}
+.fm-row-type{font-size:.62rem;font-family:'Share Tech Mono',monospace;color:var(--muted2);}
+
+/* ── EDITOR ── */
+.editor-toolbar{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid var(--border);flex-shrink:0;background:rgba(0,0,0,0.2);}
+.editor-fname{font-family:'Share Tech Mono',monospace;font-size:.7rem;color:var(--cyan);flex:1;}
+textarea.code-area{
+  flex:1;width:100%;background:transparent;border:none;
+  color:#c8e6ff;font-family:'Share Tech Mono',monospace;
+  font-size:.78rem;line-height:1.6;resize:none;outline:none;
+  padding:12px 16px;tab-size:2;
+}
+
+/* ── TERMINAL ── */
+.term-toolbar{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid var(--border);flex-shrink:0;background:rgba(0,0,0,0.3);}
+#term-container{flex:1;background:#020a10;padding:6px;overflow:hidden;}
+
+/* ── GAUGE MINI ── */
+.gauge-mini{display:inline-block;position:relative;width:80px;height:80px;}
+.gauge-mini svg{transform:rotate(-90deg);}
+.gauge-mini-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.gauge-mini-val{font-family:'Share Tech Mono',monospace;font-size:.9rem;line-height:1;}
+.gauge-mini-lbl{font-size:.5rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted2);}
+
+/* ── PROGRESS ── */
+.prog-bar{height:5px;background:#0a2030;border-radius:99px;overflow:hidden;margin-top:6px;}
+.prog-fill{height:100%;border-radius:99px;transition:width .8s cubic-bezier(.4,0,.2,1),background .5s;}
+
+/* ── LOG BOX ── */
+.logbox{
+  background:#020a10;border:1px solid var(--border);border-radius:8px;
+  padding:10px 12px;font-family:'Share Tech Mono',monospace;font-size:.68rem;
+  line-height:1.6;color:#5a8ea8;max-height:200px;overflow-y:auto;
+  white-space:pre-wrap;word-break:break-all;margin-top:10px;
+}
+
+/* ── TOAST ── */
+#toast{
+  position:fixed;bottom:60px;right:20px;z-index:99999;
+  background:rgba(0,255,136,0.12);border:1px solid rgba(0,255,136,0.3);
+  border-radius:9px;padding:9px 16px;font-family:'Share Tech Mono',monospace;
+  font-size:.68rem;color:var(--green);letter-spacing:.06em;
+  opacity:0;transform:translateY(6px);transition:all .3s;pointer-events:none;
+}
+#toast.show{opacity:1;transform:translateY(0);}
+#toast.err{background:rgba(255,61,90,0.12);border-color:rgba(255,61,90,0.3);color:var(--red);}
+
+/* ── CONTEXT MENU ── */
+#ctx-menu{
+  position:fixed;z-index:99998;
+  background:rgba(6,15,24,0.97);border:1px solid var(--border-hi);
+  border-radius:10px;padding:6px;min-width:160px;
+  box-shadow:0 10px 40px rgba(0,0,0,0.6);
+  display:none;backdrop-filter:blur(20px);
+}
+.ctx-item{
+  padding:7px 14px;border-radius:6px;font-size:.75rem;cursor:pointer;
+  color:var(--secondary);transition:background .15s,color .15s;
+  display:flex;align-items:center;gap:8px;
+}
+.ctx-item:hover{background:rgba(0,229,255,0.08);color:var(--text);}
+.ctx-item.danger:hover{background:rgba(255,61,90,0.08);color:var(--red);}
+.ctx-sep{height:1px;background:var(--border);margin:4px 0;}
+
+/* ── MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:99990;display:none;align-items:center;justify-content:center;}
+.modal-overlay.show{display:flex;}
+.modal{background:var(--win);border:1px solid var(--border-hi);border-radius:12px;padding:24px;min-width:320px;max-width:480px;width:90%;}
+.modal h3{font-size:.9rem;font-weight:600;color:var(--cyan);margin-bottom:16px;letter-spacing:.06em;}
+.modal .field{margin-bottom:12px;}
+.modal .field label{display:block;font-family:'Share Tech Mono',monospace;font-size:.6rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted2);margin-bottom:6px;}
+.modal .field input,.modal .field select{width:100%;}
+.modal-btns{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;}
+</style>
+</head>
+<body>
+
+<!-- SYSBAR -->
+<div id="sysbar">
+  <div class="sb-item"><span class="sb-lbl">Host</span><span class="sb-val" id="sb-host">─</span></div>
+  <div class="sb-item"><span class="sb-lbl">IP</span><span class="sb-val" id="sb-ip">─</span></div>
+  <div class="sb-item"><span class="sb-lbl">OS</span><span class="sb-val" id="sb-os">─</span></div>
+  <div class="sb-item"><span class="sb-lbl">Kernel</span><span class="sb-val" id="sb-kernel">─</span></div>
+  <div class="sb-item"><span class="sb-lbl">Load</span><span class="sb-val" id="sb-load">─</span></div>
+  <div class="sb-item"><span class="sb-lbl">Node</span><span class="sb-val" id="sb-node">─</span></div>
+</div>
+
+<!-- DESKTOP -->
+<div id="desktop" style="top:28px;">
+
+  <!-- DESKTOP ICONS -->
+  <div class="desk-icons" style="top:10px;">
+    <div class="desk-icon" ondblclick="openApp('monitor')" onclick="selectIcon(this)">
+      <div class="desk-icon-img" style="background:rgba(0,229,255,0.1);border-color:rgba(0,229,255,0.2);">📊</div>
+      <div class="desk-icon-label">Monitor</div>
+    </div>
+    <div class="desk-icon" ondblclick="openApp('files')" onclick="selectIcon(this)">
+      <div class="desk-icon-img" style="background:rgba(255,179,0,0.1);border-color:rgba(255,179,0,0.2);">📁</div>
+      <div class="desk-icon-label">Files</div>
+    </div>
+    <div class="desk-icon" ondblclick="openApp('terminal')" onclick="selectIcon(this)">
+      <div class="desk-icon-img" style="background:rgba(0,255,136,0.1);border-color:rgba(0,255,136,0.2);">💻</div>
+      <div class="desk-icon-label">Terminal</div>
+    </div>
+    <div class="desk-icon" ondblclick="openApp('pm2')" onclick="selectIcon(this)">
+      <div class="desk-icon-img" style="background:rgba(168,85,247,0.1);border-color:rgba(168,85,247,0.2);">⚙️</div>
+      <div class="desk-icon-label">PM2</div>
+    </div>
+    <div class="desk-icon" ondblclick="openApp('firewall')" onclick="selectIcon(this)">
+      <div class="desk-icon-img" style="background:rgba(255,61,90,0.1);border-color:rgba(255,61,90,0.2);">🛡️</div>
+      <div class="desk-icon-label">Firewall</div>
+    </div>
+    <div class="desk-icon" ondblclick="openApp('cron')" onclick="selectIcon(this)">
+      <div class="desk-icon-img" style="background:rgba(0,229,255,0.1);border-color:rgba(0,229,255,0.2);">⏰</div>
+      <div class="desk-icon-label">Cron</div>
+    </div>
+    <div class="desk-icon" ondblclick="openApp('users')" onclick="selectIcon(this)">
+      <div class="desk-icon-img" style="background:rgba(0,255,136,0.1);border-color:rgba(0,255,136,0.2);">👤</div>
+      <div class="desk-icon-label">Users</div>
+    </div>
+    <div class="desk-icon" ondblclick="openApp('nginx')" onclick="selectIcon(this)">
+      <div class="desk-icon-img" style="background:rgba(0,255,136,0.1);border-color:rgba(0,255,136,0.2);">🌐</div>
+      <div class="desk-icon-label">Nginx</div>
+    </div>
+    <div class="desk-icon" ondblclick="openApp('packages')" onclick="selectIcon(this)">
+      <div class="desk-icon-img" style="background:rgba(255,179,0,0.1);border-color:rgba(255,179,0,0.2);">📦</div>
+      <div class="desk-icon-label">Packages</div>
+    </div>
+  </div>
+</div>
+
+<!-- TASKBAR -->
+<div id="taskbar">
+  <div class="tb-logo">
+    <div class="tb-logo-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#00e5ff" stroke-width="1.5" stroke-linecap="round">
+        <rect x="2" y="3" width="20" height="14" rx="2"/>
+        <path d="M8 21h8M12 17v4"/>
+        <polyline points="7 8 9 11 12 7 14 9 16 6"/>
+      </svg>
+    </div>
+    <span>LiteGuard</span>
+  </div>
+  <div class="tb-apps" id="tb-apps">
+    <button class="tb-btn" id="tb-monitor" onclick="openApp('monitor')"><span class="tb-icon">📊</span> Monitor<div class="tb-dot"></div></button>
+    <button class="tb-btn" id="tb-files" onclick="openApp('files')"><span class="tb-icon">📁</span> Files<div class="tb-dot"></div></button>
+    <button class="tb-btn" id="tb-terminal" onclick="openApp('terminal')"><span class="tb-icon">💻</span> Terminal<div class="tb-dot"></div></button>
+    <button class="tb-btn" id="tb-pm2" onclick="openApp('pm2')"><span class="tb-icon">⚙️</span> PM2<div class="tb-dot"></div></button>
+    <button class="tb-btn" id="tb-firewall" onclick="openApp('firewall')"><span class="tb-icon">🛡️</span> Firewall<div class="tb-dot"></div></button>
+    <button class="tb-btn" id="tb-cron" onclick="openApp('cron')"><span class="tb-icon">⏰</span> Cron<div class="tb-dot"></div></button>
+    <button class="tb-btn" id="tb-users" onclick="openApp('users')"><span class="tb-icon">👤</span> Users<div class="tb-dot"></div></button>
+    <button class="tb-btn" id="tb-nginx" onclick="openApp('nginx')"><span class="tb-icon">🌐</span> Nginx<div class="tb-dot"></div></button>
+    <button class="tb-btn" id="tb-packages" onclick="openApp('packages')"><span class="tb-icon">📦</span> Packages<div class="tb-dot"></div></button>
+  </div>
+  <div class="tb-right">
+    <div class="tb-stat"><div class="tb-stat-val" id="tb-cpu">─%</div><div class="tb-stat-lbl">CPU</div></div>
+    <div class="tb-stat"><div class="tb-stat-val" id="tb-ram">─%</div><div class="tb-stat-lbl">RAM</div></div>
+    <div class="tb-clock" id="tb-clock">──:──:──</div>
+    <div class="tb-user" onclick="logout()">
+      <div class="tb-user-avatar">A</div>
+      <div class="tb-user-name">admin</div>
+    </div>
+  </div>
+</div>
+
+<!-- CONTEXT MENU -->
+<div id="ctx-menu">
+  <div class="ctx-item" onclick="ctxAction('open')">📂 Open</div>
+  <div class="ctx-item" onclick="ctxAction('edit')">✏️ Edit</div>
+  <div class="ctx-item" onclick="ctxAction('download')">⬇️ Download</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" onclick="ctxAction('rename')">✏️ Rename</div>
+  <div class="ctx-item danger" onclick="ctxAction('delete')">🗑️ Delete</div>
+</div>
+
+<!-- MODALS -->
+<div class="modal-overlay" id="modal-rename">
+  <div class="modal">
+    <h3>✏️ Rename</h3>
+    <div class="field"><label>New Name</label><input class="inp" id="rename-input" placeholder="new-name.txt"></div>
+    <div class="modal-btns">
+      <button class="btn" onclick="closeModal('rename')">Cancel</button>
+      <button class="btn btn-primary" onclick="doRename()">Rename</button>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="modal-mkdir">
+  <div class="modal">
+    <h3>📁 New Folder</h3>
+    <div class="field"><label>Folder Name</label><input class="inp" id="mkdir-input" placeholder="new-folder"></div>
+    <div class="modal-btns">
+      <button class="btn" onclick="closeModal('mkdir')">Cancel</button>
+      <button class="btn btn-primary" onclick="doMkdir()">Create</button>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="modal-adduser">
+  <div class="modal">
+    <h3>👤 Add User</h3>
+    <div class="field"><label>Username</label><input class="inp" id="au-user" placeholder="username"></div>
+    <div class="field"><label>Password</label><input class="inp" type="password" id="au-pass" placeholder="••••••••"></div>
+    <div class="field"><label><input type="checkbox" id="au-sudo" style="margin-right:6px;accent-color:var(--cyan)">Add to sudo group</label></div>
+    <div class="modal-btns">
+      <button class="btn" onclick="closeModal('adduser')">Cancel</button>
+      <button class="btn btn-primary" onclick="doAddUser()">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════
+// GLOBAL STATE
+// ══════════════════════════════════════════════
+const windows = {};
+let zCounter = 10;
+let dragState = null;
+let resizeState = null;
+let termInstance = null, fitAddon = null, termActive = false;
+let fmPath = '/root', fmSelected = null, fmViewMode = 'list';
+let ctxTarget = null;
+let renameTarget = null;
+let cpuHistory = new Array(40).fill(0);
+let cpuChartInst = null;
+const socket = io();
+
+// ══════════════════════════════════════════════
+// CLOCK
+// ══════════════════════════════════════════════
+setInterval(()=>{
+  const n=new Date();
+  document.getElementById('tb-clock').textContent=
+    String(n.getHours()).padStart(2,'0')+':'+
+    String(n.getMinutes()).padStart(2,'0')+':'+
+    String(n.getSeconds()).padStart(2,'0');
+},1000);
+
+// ══════════════════════════════════════════════
+// SYSINFO
+// ══════════════════════════════════════════════
+async function loadSysInfo(){
+  try{
+    const d=await api('/api/sysinfo');
+    document.getElementById('sb-host').textContent=d.hostname;
+    document.getElementById('sb-ip').textContent=d.public_ip;
+    document.getElementById('sb-os').textContent=d.os.replace('Ubuntu ','U').replace('Debian ','D');
+    document.getElementById('sb-kernel').textContent=d.kernel;
+    document.getElementById('sb-node').textContent=d.node_version;
+  }catch{}
+}
+loadSysInfo();
+
+// ══════════════════════════════════════════════
+// SOCKET STATS
+// ══════════════════════════════════════════════
+socket.on('stats', d=>{
+  document.getElementById('tb-cpu').textContent=parseFloat(d.cpu_usage_percent).toFixed(1)+'%';
+  document.getElementById('tb-ram').textContent=parseFloat(d.ram_percent).toFixed(1)+'%';
+  document.getElementById('sb-load').textContent=d.load_avg?.join(' ')||'─';
+  if(windows.monitor && windows.monitor.open) updateMonitor(d);
+});
+
+// ══════════════════════════════════════════════
+// API HELPER
+// ══════════════════════════════════════════════
+async function api(url, opts={}){
+  const r=await fetch(url,{headers:{'Content-Type':'application/json'},...opts});
+  return r.json();
+}
+async function post(url,body){return api(url,{method:'POST',body:JSON.stringify(body)});}
+
+// ══════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════
+let toastTimer;
+function toast(msg,isErr=false){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.className='show'+(isErr?' err':'');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>{t.className='';},3000);
+}
+
+// ══════════════════════════════════════════════
+// WINDOW SYSTEM
+// ══════════════════════════════════════════════
+const APP_SIZES={
+  monitor:{w:820,h:520},files:{w:900,h:580},terminal:{w:820,h:500},
+  pm2:{w:860,h:520},firewall:{w:700,h:480},cron:{w:680,h:440},
+  users:{w:700,h:460},nginx:{w:750,h:480},packages:{w:680,h:460}
+};
+const APP_TITLES={
+  monitor:'📊 Resource Monitor',files:'📁 File Manager',terminal:'💻 Terminal',
+  pm2:'⚙️ PM2 Process Manager',firewall:'🛡️ Firewall (UFW)',cron:'⏰ Cron Jobs',
+  users:'👤 User Manager',nginx:'🌐 Nginx Manager',packages:'📦 Package Manager'
+};
+
+function openApp(id){
+  if(windows[id]&&windows[id].el){
+    focusWindow(id);
+    windows[id].el.style.display='flex';
+    document.getElementById('tb-'+id).classList.add('open');
+    return;
+  }
+  createWindow(id);
+}
+
+function createWindow(id){
+  const desk=document.getElementById('desktop');
+  const sz=APP_SIZES[id]||{w:700,h:480};
+  const dw=desk.offsetWidth, dh=desk.offsetHeight;
+  const x=Math.max(100,Math.floor(Math.random()*(dw-sz.w-120))+100);
+  const y=Math.max(10,Math.floor(Math.random()*(dh-sz.h-60))+10);
+
+  const win=document.createElement('div');
+  win.className='window';
+  win.id='win-'+id;
+  win.style.cssText=`left:${x}px;top:${y}px;width:${sz.w}px;height:${sz.h}px;z-index:${++zCounter};`;
+
+  win.innerHTML=`
+    <div class="win-header" onmousedown="startDrag(event,'${id}')">
+      <div class="win-dots">
+        <div class="wd wd-r" onclick="closeWindow('${id}')"></div>
+        <div class="wd wd-y" onclick="minimizeWindow('${id}')"></div>
+        <div class="wd wd-g" onclick="maximizeWindow('${id}')"></div>
+      </div>
+      <div class="win-title">${APP_TITLES[id]}</div>
+    </div>
+    <div class="win-body" id="win-body-${id}"></div>
+    <div class="resize-handle" onmousedown="startResize(event,'${id}')"></div>
+  `;
+
+  desk.appendChild(win);
+  windows[id]={el:win,open:true,maximized:false,prevStyle:null};
+  focusWindow(id);
+  document.getElementById('tb-'+id).classList.add('open');
+
+  loadAppContent(id);
+}
+
+function focusWindow(id){
+  Object.values(windows).forEach(w=>w.el&&w.el.classList.remove('focused'));
+  if(windows[id]&&windows[id].el){
+    windows[id].el.classList.add('focused');
+    windows[id].el.style.zIndex=++zCounter;
+  }
+}
+
+function closeWindow(id){
+  if(windows[id]&&windows[id].el){
+    windows[id].el.remove();
+    windows[id]={};
+    document.getElementById('tb-'+id).classList.remove('open');
+    if(id==='terminal'&&termActive){socket.emit('terminal:stop');termActive=false;}
+  }
+}
+
+function minimizeWindow(id){
+  if(windows[id]&&windows[id].el){
+    windows[id].el.style.display='none';
+    document.getElementById('tb-'+id).classList.remove('open');
+  }
+}
+
+function maximizeWindow(id){
+  const w=windows[id];if(!w||!w.el)return;
+  const desk=document.getElementById('desktop');
+  if(!w.maximized){
+    w.prevStyle={left:w.el.style.left,top:w.el.style.top,width:w.el.style.width,height:w.el.style.height};
+    w.el.style.cssText+=';left:0!important;top:0!important;width:100%!important;height:100%!important;';
+    w.maximized=true;
+  } else {
+    Object.assign(w.el.style,w.prevStyle);w.maximized=false;
+  }
+  if(id==='terminal'&&fitAddon)setTimeout(()=>fitAddon.fit(),100);
+}
+
+function selectIcon(el){
+  document.querySelectorAll('.desk-icon').forEach(i=>i.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ── DRAG ──
+document.addEventListener('mousemove',e=>{
+  if(dragState){
+    const{id,startX,startY,origLeft,origTop}=dragState;
+    const w=windows[id];if(!w||!w.el)return;
+    w.el.style.left=(origLeft+e.clientX-startX)+'px';
+    w.el.style.top=Math.max(0,origTop+e.clientY-startY)+'px';
+  }
+  if(resizeState){
+    const{id,startX,startY,origW,origH}=resizeState;
+    const w=windows[id];if(!w||!w.el)return;
+    w.el.style.width=Math.max(320,origW+e.clientX-startX)+'px';
+    w.el.style.height=Math.max(200,origH+e.clientY-startY)+'px';
+    if(id==='terminal'&&fitAddon)fitAddon.fit();
+  }
+});
+document.addEventListener('mouseup',()=>{dragState=null;resizeState=null;});
+
+function startDrag(e,id){
+  if(e.button!==0)return;
+  focusWindow(id);
+  const w=windows[id];if(!w||!w.el||w.maximized)return;
+  dragState={id,startX:e.clientX,startY:e.clientY,
+    origLeft:parseInt(w.el.style.left)||0,origTop:parseInt(w.el.style.top)||0};
+  e.preventDefault();
+}
+function startResize(e,id){
+  if(e.button!==0)return;
+  const w=windows[id];if(!w||!w.el)return;
+  resizeState={id,startX:e.clientX,startY:e.clientY,
+    origW:w.el.offsetWidth,origH:w.el.offsetHeight};
+  e.preventDefault();
+}
+
+window.addEventListener('click',e=>{
+  if(!e.target.closest('#ctx-menu'))document.getElementById('ctx-menu').style.display='none';
+});
+
+// ══════════════════════════════════════════════
+// APP CONTENT LOADERS
+// ══════════════════════════════════════════════
+function loadAppContent(id){
+  const body=document.getElementById('win-body-'+id);
+  if(!body)return;
+  switch(id){
+    case 'monitor': buildMonitor(body); break;
+    case 'files': buildFiles(body); break;
+    case 'terminal': buildTerminal(body); break;
+    case 'pm2': buildPm2(body); break;
+    case 'firewall': buildFirewall(body); break;
+    case 'cron': buildCron(body); break;
+    case 'users': buildUsers(body); break;
+    case 'nginx': buildNginx(body); break;
+    case 'packages': buildPackages(body); break;
+  }
+}
+
+// ── MONITOR ──
+function buildMonitor(body){
+  body.innerHTML=`
+  <div class="panel">
+    <div class="panel-row">
+      <div class="mini-card" style="text-align:center;flex:0 0 120px;">
+        <div class="mc-label">RAM</div>
+        <div class="gauge-mini">
+          <svg width="80" height="80" viewBox="0 0 80 80">
+            <circle fill="none" stroke="#0a2030" stroke-width="8" cx="40" cy="40" r="32"/>
+            <circle id="mon-ram-gauge" fill="none" stroke="#00e5ff" stroke-width="8" stroke-linecap="round"
+              cx="40" cy="40" r="32" stroke-dasharray="201" stroke-dashoffset="201"
+              style="transition:stroke-dashoffset .8s,stroke .5s;filter:drop-shadow(0 0 6px #00e5ff)"/>
+          </svg>
+          <div class="gauge-mini-center">
+            <div class="gauge-mini-val" id="mon-ram-pct" style="color:var(--cyan)">─%</div>
+            <div class="gauge-mini-lbl">RAM</div>
+          </div>
+        </div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--muted2);margin-top:4px;" id="mon-ram-gb">─/─ GB</div>
+      </div>
+      <div class="mini-card" style="flex:1;">
+        <div class="mc-label">CPU Load · Live</div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+          <div style="font-family:'Share Tech Mono',monospace;font-size:1.8rem;color:var(--green);text-shadow:var(--glow-g);" id="mon-cpu-val">─%</div>
+          <div style="text-align:right;"><div style="font-size:.58rem;color:var(--muted2);font-family:'Share Tech Mono',monospace;letter-spacing:.15em;">60s AVG</div><div style="font-family:'Share Tech Mono',monospace;font-size:.85rem;color:var(--secondary);" id="mon-cpu-avg">─%</div></div>
+        </div>
+        <div style="height:80px;position:relative;"><canvas id="mon-cpu-chart"></canvas></div>
+      </div>
+    </div>
+    <div class="panel-row">
+      <div class="mini-card"><div class="mc-label">Uptime</div><div class="mc-val" style="font-size:1rem;" id="mon-uptime">─</div></div>
+      <div class="mini-card"><div class="mc-label">Disk</div><div class="mc-val" id="mon-disk-used">─</div><div class="mc-sub" id="mon-disk-sub">─</div></div>
+      <div class="mini-card"><div class="mc-label">Free RAM</div><div class="mc-val" id="mon-ram-free">─ GB</div><div class="mc-sub" id="mon-ram-total-s">of ─ GB total</div></div>
+      <div class="mini-card"><div class="mc-label">CPU Cores</div><div class="mc-val" id="mon-cores">─</div><div class="mc-sub" id="mon-cpu-model">─</div></div>
+    </div>
+    <div class="section-title">Top Processes</div>
+    <div style="overflow:auto;max-height:200px;">
+      <table class="tbl">
+        <thead><tr><th>User</th><th>PID</th><th>CPU%</th><th>MEM%</th><th>Command</th></tr></thead>
+        <tbody id="mon-procs"><tr><td colspan="5" style="text-align:center;color:var(--muted2);padding:16px;">Loading...</td></tr></tbody>
+      </table>
+    </div>
+    <div class="btn-row" style="margin-top:12px;">
+      <button class="btn" onclick="ramOptimize()">⚡ Optimize RAM</button>
+      <button class="btn" onclick="loadProcesses()">↻ Refresh Processes</button>
+    </div>
+  </div>`;
+
+  const ctx=document.getElementById('mon-cpu-chart')?.getContext('2d');
+  if(ctx){
+    const g=ctx.createLinearGradient(0,0,0,80);
+    g.addColorStop(0,'rgba(0,255,136,0.25)');g.addColorStop(1,'rgba(0,255,136,0)');
+    cpuChartInst=new Chart(ctx,{
+      type:'line',
+      data:{labels:new Array(40).fill(''),datasets:[{data:[...cpuHistory],borderColor:'#00ff88',borderWidth:1.5,backgroundColor:g,fill:true,tension:0.4,pointRadius:0}]},
+      options:{responsive:true,maintainAspectRatio:false,animation:{duration:200},
+        scales:{x:{display:false},y:{min:0,max:100,grid:{color:'rgba(0,229,255,0.04)'},border:{color:'transparent'},ticks:{color:'#1e4560',font:{family:'Share Tech Mono',size:8},callback:v=>v+'%',maxTicksLimit:4}}},
+        plugins:{legend:{display:false},tooltip:{enabled:false}}}
+    });
+  }
+
+  api('/api/stats').then(d=>{
+    document.getElementById('mon-disk-used').textContent=d.disk?.used||'─';
+    document.getElementById('mon-disk-sub').textContent=`of ${d.disk?.total||'─'} (${d.disk?.percent||'─'})`;
+    document.getElementById('mon-cores').textContent=(d.cpu_cores||'─')+' cores';
+    document.getElementById('mon-cpu-model').textContent=(d.cpu_model||'').substring(0,22);
+    document.getElementById('mon-ram-total-s').textContent=`of ${d.ram_total_gb||'─'} GB total`;
+    updateMonitor(d);
+  });
+  loadProcesses();
+}
+
+function updateMonitor(d){
+  const ram=parseFloat(d.ram_percent);
+  const cpu=parseFloat(d.cpu_usage_percent);
+  const circ=201;
+
+  const g=document.getElementById('mon-ram-gauge');
+  const rColor=ram>80?'#ff3d5a':ram>60?'#ffb300':'#00e5ff';
+  if(g){
+    g.style.strokeDashoffset=circ-(ram/100)*circ;
+    g.style.stroke=rColor;
+    g.style.filter=`drop-shadow(0 0 6px ${rColor})`;
+  }
+  const rp=document.getElementById('mon-ram-pct');
+  if(rp){rp.textContent=ram.toFixed(1)+'%';rp.style.color=rColor;}
+  const rgb=document.getElementById('mon-ram-gb');
+  if(rgb)rgb.textContent=`${d.ram_used_gb||'─'}/${parseFloat(d.ram_used_gb||0)+parseFloat(d.ram_free_gb||0)} GB`;
+  const rf=document.getElementById('mon-ram-free');
+  if(rf)rf.textContent=(d.ram_free_gb||'─')+' GB';
+
+  const cColor=cpu>80?'#ff3d5a':cpu>60?'#ffb300':'#00ff88';
+  const cv=document.getElementById('mon-cpu-val');
+  if(cv){cv.textContent=cpu.toFixed(1)+'%';cv.style.color=cColor;cv.style.textShadow=`0 0 16px ${cColor}55`;}
+
+  cpuHistory.push(cpu);cpuHistory.shift();
+  if(cpuChartInst){
+    cpuChartInst.data.datasets[0].data=[...cpuHistory];
+    cpuChartInst.data.datasets[0].borderColor=cColor;
+    cpuChartInst.update('none');
+  }
+  const avg=(cpuHistory.reduce((a,b)=>a+b,0)/cpuHistory.length).toFixed(1);
+  const ca=document.getElementById('mon-cpu-avg');if(ca)ca.textContent=avg+'%';
+
+  const sec=parseInt(d.uptime||0);
+  const days=Math.floor(sec/86400);const hrs=Math.floor((sec%86400)/3600);const mins=Math.floor((sec%3600)/60);
+  const up=document.getElementById('mon-uptime');
+  if(up)up.textContent=`${days}d ${String(hrs).padStart(2,'0')}h ${String(mins).padStart(2,'0')}m`;
+}
+
+async function loadProcesses(){
+  try{
+    const d=await api('/api/system/processes');
+    const tb=document.getElementById('mon-procs');
+    if(!tb)return;
+    if(!d.processes?.length){tb.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted2);padding:12px;">No data</td></tr>';return;}
+    tb.innerHTML=d.processes.slice(0,12).map(p=>`
+      <tr>
+        <td style="font-family:'Share Tech Mono',monospace;font-size:.68rem;color:var(--secondary);">${p.user}</td>
+        <td style="font-family:'Share Tech Mono',monospace;font-size:.68rem;">${p.pid}</td>
+        <td><span style="font-family:'Share Tech Mono',monospace;font-size:.72rem;color:${parseFloat(p.cpu)>50?'var(--red)':parseFloat(p.cpu)>20?'var(--amber)':'var(--green)'};">${p.cpu}%</span></td>
+        <td><span style="font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--cyan);">${p.mem}%</span></td>
+        <td style="font-family:'Share Tech Mono',monospace;font-size:.65rem;color:var(--muted2);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.cmd}</td>
+      </tr>`).join('');
+  }catch{}
+}
+
+async function ramOptimize(){
+  toast('⚡ Optimizing RAM...',false);
+  await post('/api/system/ram-optimize',{});
+  toast('✓ RAM optimization triggered!');
+}
+
+// ── FILE MANAGER ──
+let fmCtxItem=null;
+
+function buildFiles(body){
+  body.style.flexDirection='column';
+  body.innerHTML=`
+    <div class="fm-toolbar">
+      <button class="btn" onclick="fmNav('..')">← Up</button>
+      <div class="fm-path" id="fm-path-display">/root</div>
+      <input class="inp" id="fm-search" placeholder="Search..." style="width:140px;" oninput="fmSearch(this.value)">
+      <button class="btn" onclick="openModal('mkdir')">+ Folder</button>
+      <button class="btn" onclick="fmUpload()">⬆ Upload</button>
+      <button class="btn ${fmViewMode==='grid'?'btn-primary':''}" onclick="fmToggleView()">⊞</button>
+      <input type="file" id="fm-upload-input" multiple style="display:none" onchange="fmDoUpload(this)">
+    </div>
+    <div class="fm-grid" id="fm-grid"></div>`;
+  fmLoad(fmPath);
+}
+
+async function fmLoad(p){
+  fmPath=p;
+  const d=document.getElementById('fm-path-display');
+  if(d)d.textContent=p;
+  const grid=document.getElementById('fm-grid');
+  if(!grid)return;
+  grid.innerHTML='<div style="padding:20px;color:var(--muted2);font-family:\'Share Tech Mono\',monospace;font-size:.72rem;">Loading...</div>';
+  try{
+    const data=await api('/api/files?path='+encodeURIComponent(p));
+    renderFiles(data.items||[]);
+  }catch(err){
+    grid.innerHTML=`<div style="padding:20px;color:var(--red);font-family:'Share Tech Mono',monospace;font-size:.72rem;">⚠ ${err.message||'Error loading files'}</div>`;
+  }
+}
+
+function renderFiles(items){
+  const grid=document.getElementById('fm-grid');
+  if(!grid)return;
+  if(!items.length){
+    grid.innerHTML='<div style="padding:30px;text-align:center;color:var(--muted2);font-family:\'Share Tech Mono\',monospace;font-size:.72rem;">Empty directory</div>';
+    return;
+  }
+  function fileIcon(item){
+    if(item.type==='dir')return'📁';
+    const ext=item.name.split('.').pop().toLowerCase();
+    const map={js:'🟨',ts:'🔷',json:'📋',md:'📝',txt:'📄',html:'🌐',css:'🎨',py:'🐍',sh:'⚡',log:'📜',zip:'📦',tar:'📦',gz:'📦',png:'🖼',jpg:'🖼',svg:'🎨',env:'🔒'};
+    return map[ext]||'📄';
+  }
+  function fmtSize(b){
+    if(b>1e9)return(b/1e9).toFixed(1)+'G';
+    if(b>1e6)return(b/1e6).toFixed(1)+'M';
+    if(b>1e3)return(b/1e3).toFixed(1)+'K';
+    return b+'B';
+  }
+  function fmtDate(d){
+    if(!d)return'─';
+    return new Date(d).toLocaleDateString('en',{month:'short',day:'numeric',year:'2-digit'});
+  }
+
+  grid.innerHTML=`<div class="fm-list">
+    <div class="fm-row" style="pointer-events:none;opacity:.5;">
+      <div></div><div class="fm-row-name">Name</div>
+      <div class="fm-row-type">Type</div><div class="fm-row-size">Size</div><div class="fm-row-date">Modified</div>
+    </div>
+    ${items.map(item=>`
+      <div class="fm-row" data-name="${item.name}" data-type="${item.type}"
+        onclick="fmSelect('${item.name}','${item.type}')"
+        ondblclick="fmOpen('${item.name}','${item.type}')"
+        oncontextmenu="fmCtx(event,'${item.name}','${item.type}')">
+        <div class="fm-row-icon">${fileIcon(item)}</div>
+        <div class="fm-row-name" style="${item.hidden?'opacity:.5':''}">${item.name}</div>
+        <div class="fm-row-type" style="font-size:.6rem;color:var(--muted2);">${item.type}</div>
+        <div class="fm-row-size">${item.type==='dir'?'─':fmtSize(item.size)}</div>
+        <div class="fm-row-date">${fmtDate(item.mtime)}</div>
+      </div>`).join('')}
+  </div>`;
+}
+
+function fmSelect(name,type){
+  document.querySelectorAll('.fm-row.selected').forEach(el=>el.classList.remove('selected'));
+  const el=document.querySelector(`.fm-row[data-name="${name}"]`);
+  if(el){el.classList.add('selected');fmSelected={name,type};}
+}
+
+function fmOpen(name,type){
+  if(type==='dir'){fmNav(name);return;}
+  const fullPath=fmPath.endsWith('/')?fmPath+name:fmPath+'/'+name;
+  openEditor(fullPath);
+}
+
+function fmNav(segment){
+  if(segment==='..'){
+    const parts=fmPath.split('/').filter(Boolean);
+    parts.pop();
+    fmLoad('/'+parts.join('/')||'/');
+  } else {
+    fmLoad(fmPath.endsWith('/')?fmPath+segment:fmPath+'/'+segment);
+  }
+}
+
+function fmSearch(q){
+  if(!q){fmLoad(fmPath);return;}
+  document.querySelectorAll('.fm-row').forEach(row=>{
+    const name=row.dataset.name||'';
+    row.style.display=name.toLowerCase().includes(q.toLowerCase())||!row.dataset.name?'':'none';
+  });
+}
+
+function fmToggleView(){
+  fmViewMode=fmViewMode==='list'?'grid':'list';
+  fmLoad(fmPath);
+}
+
+function fmUpload(){document.getElementById('fm-upload-input').click();}
+
+async function fmDoUpload(input){
+  const formData=new FormData();
+  formData.append('path',fmPath);
+  for(const f of input.files)formData.append('files',f);
+  try{
+    const r=await fetch('/api/files/upload',{method:'POST',body:formData});
+    const d=await r.json();
+    if(d.success){toast(`✓ ${d.count} file(s) uploaded`);fmLoad(fmPath);}
+    else toast('⚠ Upload failed',true);
+  }catch{toast('⚠ Upload error',true);}
+  input.value='';
+}
+
+function fmCtx(e,name,type){
+  e.preventDefault();fmSelected={name,type};fmCtxItem={name,type};
+  const m=document.getElementById('ctx-menu');
+  m.style.display='block';m.style.left=e.clientX+'px';m.style.top=e.clientY+'px';
+}
+
+async function ctxAction(action){
+  document.getElementById('ctx-menu').style.display='none';
+  if(!fmCtxItem)return;
+  const fullPath=fmPath+'/'+fmCtxItem.name;
+  switch(action){
+    case 'open':fmOpen(fmCtxItem.name,fmCtxItem.type);break;
+    case 'edit':if(fmCtxItem.type!=='dir')openEditor(fullPath);break;
+    case 'download':window.open('/api/files/download?path='+encodeURIComponent(fullPath));break;
+    case 'rename':renameTarget=fullPath;document.getElementById('rename-input').value=fmCtxItem.name;openModal('rename');break;
+    case 'delete':
+      if(confirm(`Delete "${fmCtxItem.name}"?`)){
+        const d=await post('/api/files/delete',{path:fullPath});
+        if(d.success){toast('✓ Deleted');fmLoad(fmPath);}
+        else toast('⚠ '+d.error,true);
+      }
+      break;
+  }
+}
+
+async function doRename(){
+  const newName=document.getElementById('rename-input').value.trim();
+  if(!newName||!renameTarget)return;
+  const dir=renameTarget.substring(0,renameTarget.lastIndexOf('/'));
+  const d=await post('/api/files/rename',{from:renameTarget,to:dir+'/'+newName});
+  closeModal('rename');
+  if(d.success){toast('✓ Renamed');fmLoad(fmPath);}
+  else toast('⚠ '+d.error,true);
+}
+
+async function doMkdir(){
+  const name=document.getElementById('mkdir-input').value.trim();
+  if(!name)return;
+  const d=await post('/api/files/mkdir',{path:fmPath+'/'+name});
+  closeModal('mkdir');
+  if(d.success){toast('✓ Folder created');fmLoad(fmPath);}
+  else toast('⚠ '+d.error,true);
+}
+
+// ── EDITOR ──
+function openEditor(filePath){
+  const id='editor-'+Date.now();
+  const desk=document.getElementById('desktop');
+  const win=document.createElement('div');
+  win.className='window focused';
+  win.id='win-'+id;
+  win.style.cssText='left:200px;top:60px;width:780px;height:540px;z-index:'+(++zCounter)+';';
+  win.innerHTML=`
+    <div class="win-header" onmousedown="startDragEl(event,this.closest('.window'))">
+      <div class="win-dots">
+        <div class="wd wd-r" onclick="this.closest('.window').remove()"></div>
+        <div class="wd wd-y" onclick="this.closest('.window').style.display='none'"></div>
+        <div class="wd wd-g"></div>
+      </div>
+      <div class="win-title">✏️ ${filePath.split('/').pop()}</div>
+    </div>
+    <div class="win-body" style="flex-direction:column;">
+      <div class="editor-toolbar">
+        <div class="editor-fname">${filePath}</div>
+        <button class="btn btn-primary" onclick="editorSave('${filePath}',this)">💾 Save</button>
+      </div>
+      <textarea class="code-area" id="editor-${id}" placeholder="Loading..."></textarea>
+    </div>
+    <div class="resize-handle" onmousedown="startResizeEl(event,this.closest('.window'))"></div>
+  `;
+  desk.appendChild(win);
+  win.addEventListener('mousedown',()=>{
+    document.querySelectorAll('.window').forEach(w=>w.classList.remove('focused'));
+    win.classList.add('focused');win.style.zIndex=++zCounter;
+  });
+  api('/api/files/read?path='+encodeURIComponent(filePath)).then(d=>{
+    const ta=document.getElementById('editor-'+id);
+    if(ta)ta.value=d.content||'';
+  }).catch(err=>{
+    const ta=document.getElementById('editor-'+id);
+    if(ta)ta.value='// Error: '+err.message;
+  });
+}
+
+async function editorSave(filePath,btn){
+  const id=btn.closest('.win-body').querySelector('textarea').id;
+  const content=document.getElementById(id).value;
+  const d=await post('/api/files/write',{filePath,content});
+  if(d.success)toast('✓ File saved');
+  else toast('⚠ '+d.error,true);
+}
+
+function startDragEl(e,win){
+  if(e.button!==0)return;
+  const sx=e.clientX,sy=e.clientY;
+  const ol=parseInt(win.style.left)||0,ot=parseInt(win.style.top)||0;
+  function move(e){win.style.left=(ol+e.clientX-sx)+'px';win.style.top=Math.max(0,ot+e.clientY-sy)+'px';}
+  function up(){document.removeEventListener('mousemove',move);document.removeEventListener('mouseup',up);}
+  document.addEventListener('mousemove',move);document.addEventListener('mouseup',up);
+  e.preventDefault();
+}
+function startResizeEl(e,win){
+  const sx=e.clientX,sy=e.clientY,ow=win.offsetWidth,oh=win.offsetHeight;
+  function move(e){win.style.width=Math.max(400,ow+e.clientX-sx)+'px';win.style.height=Math.max(200,oh+e.clientY-sy)+'px';}
+  function up(){document.removeEventListener('mousemove',move);document.removeEventListener('mouseup',up);}
+  document.addEventListener('mousemove',move);document.addEventListener('mouseup',up);
+  e.preventDefault();
+}
+
+// ── TERMINAL ──
+function buildTerminal(body){
+  body.style.flexDirection='column';
+  body.innerHTML=`
+    <div class="term-toolbar">
+      <span style="font-family:'Share Tech Mono',monospace;font-size:.65rem;color:var(--secondary);">bash — LiteGuard Terminal</span>
+      <div style="flex:1;"></div>
+      <button class="btn" id="term-conn-btn" onclick="toggleTerm()">▶ Connect</button>
+      <button class="btn" onclick="if(termInstance)termInstance.clear()">Clear</button>
+    </div>
+    <div id="term-container" style="flex:1;background:#020a10;padding:6px;overflow:hidden;"></div>`;
+  setTimeout(initTerm,100);
+}
+
+function initTerm(){
+  if(termInstance)return;
+  const container=document.getElementById('term-container');
+  if(!container)return;
+  termInstance=new Terminal({
+    theme:{background:'#020a10',foreground:'#c8e6ff',cursor:'#00e5ff',cursorAccent:'#020a10',selection:'rgba(0,229,255,0.2)',
+      green:'#00ff88',yellow:'#ffb300',red:'#ff3d5a',cyan:'#00e5ff',blue:'#00e5ff'},
+    fontFamily:"'Share Tech Mono','Courier New',monospace",fontSize:13,lineHeight:1.4,
+    cursorBlink:true,cursorStyle:'block',allowTransparency:true,scrollback:3000
+  });
+  fitAddon=new FitAddon.FitAddon();
+  termInstance.loadAddon(fitAddon);
+  termInstance.open(container);
+  fitAddon.fit();
+  termInstance.writeln('\x1b[36m  LiteGuard Web Terminal \x1b[0m');
+  termInstance.writeln('\x1b[90m  Click "Connect" to start bash session.\x1b[0m\r\n');
+  termInstance.onData(d=>{if(termActive)socket.emit('terminal:input',d);});
+  socket.on('terminal:data',d=>{if(termInstance)termInstance.write(d);});
+  socket.on('terminal:exit',()=>{
+    if(termInstance)termInstance.write('\r\n\x1b[31m[Session ended]\x1b[0m\r\n');
+    termActive=false;
+    const b=document.getElementById('term-conn-btn');if(b)b.textContent='▶ Connect';
+  });
+  window.addEventListener('resize',()=>{if(fitAddon)fitAddon.fit();});
+}
+
+function toggleTerm(){
+  const btn=document.getElementById('term-conn-btn');
+  if(!termActive){
+    socket.emit('terminal:start');termActive=true;
+    if(btn)btn.textContent='⏹ Disconnect';
+    if(fitAddon){fitAddon.fit();const{cols,rows}=termInstance;socket.emit('terminal:resize',{cols,rows});}
+  } else {
+    socket.emit('terminal:stop');termActive=false;
+    if(btn)btn.textContent='▶ Connect';
+    if(termInstance)termInstance.write('\r\n\x1b[33m[Disconnected]\x1b[0m\r\n');
+  }
+}
+
+// ── PM2 ──
+function buildPm2(body){
+  body.innerHTML=`
+    <div class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div class="section-title" style="margin:0;">Processes</div>
+        <button class="btn" onclick="pm2Reload()">↻ Refresh</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="tbl">
+          <thead><tr><th>ID</th><th>Name</th><th>Status</th><th>CPU</th><th>RAM</th><th>Restarts</th><th>PID</th><th>Actions</th></tr></thead>
+          <tbody id="pm2-body"><tr><td colspan="8" style="text-align:center;padding:20px;color:var(--muted2);">Loading...</td></tr></tbody>
+        </table>
+      </div>
+      <div class="section-title" style="margin-top:16px;">Logs</div>
+      <div class="btn-row">
+        <select class="select" id="pm2-log-sel"><option value="">Select process...</option></select>
+        <button class="btn" onclick="pm2LoadLogs()">Load</button>
+        <button class="btn" onclick="pm2Flush()">Flush</button>
+      </div>
+      <div class="logbox" id="pm2-logbox">Select a process and click Load...</div>
+    </div>`;
+  pm2Reload();
+}
+
+async function pm2Reload(){
+  try{
+    const list=await api('/api/pm2/list');
+    const sel=document.getElementById('pm2-log-sel');
+    const cur=sel?.value;
+    if(sel)sel.innerHTML='<option value="">Select process...</option>'+list.map(p=>`<option value="${p.id}">${p.name} (${p.id})</option>`).join('');
+    if(cur&&sel)sel.value=cur;
+    const tb=document.getElementById('pm2-body');
+    if(!tb)return;
+    if(!list.length){tb.innerHTML='<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--muted2);">No PM2 processes. Start one with PM2 first.</td></tr>';return;}
+    tb.innerHTML=list.map(p=>{
+      const mem=p.memory?(p.memory/1024/1024).toFixed(1)+' MB':'─';
+      const cpu=p.cpu!==undefined?p.cpu.toFixed(1)+'%':'─';
+      const st=p.status||'unknown';
+      const bc=st==='online'?'badge-green':st==='stopped'?'badge-red':'badge-amber';
+      return`<tr>
+        <td style="font-family:'Share Tech Mono',monospace;font-size:.7rem;color:var(--secondary);">${p.id}</td>
+        <td style="font-weight:600;font-size:.78rem;">${p.name}</td>
+        <td><span class="badge ${bc}"><span class="bdot"></span>${st}</span></td>
+        <td style="font-family:'Share Tech Mono',monospace;font-size:.72rem;">${cpu}</td>
+        <td style="font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--cyan);">${mem}</td>
+        <td style="font-family:'Share Tech Mono',monospace;font-size:.7rem;color:var(--secondary);">${p.restarts??0}</td>
+        <td style="font-family:'Share Tech Mono',monospace;font-size:.68rem;color:var(--muted2);">${p.pid??'─'}</td>
+        <td><div class="btn-row">
+          <button class="btn" onclick="pm2Act('restart',${p.id})">↺</button>
+          ${st==='online'?`<button class="btn btn-danger" onclick="pm2Act('stop',${p.id})">⏸</button>`:`<button class="btn btn-green" onclick="pm2Act('start',${p.id})">▶</button>`}
+          <button class="btn btn-danger" onclick="pm2Act('delete',${p.id})">✕</button>
+        </div></td>
+      </tr>`;
+    }).join('');
+  }catch{
+    const tb=document.getElementById('pm2-body');
+    if(tb)tb.innerHTML='<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--muted2);">PM2 not available</td></tr>';
+  }
+}
+
+async function pm2Act(action,id){
+  toast(`${action}ing ${id}...`,false);
+  const d=await post(`/api/pm2/${action}/${id}`,{});
+  if(d.success){toast(`✓ ${id} ${action}ed`);setTimeout(pm2Reload,1000);}
+  else toast('⚠ '+(d.error||'Failed'),true);
+}
+
+async function pm2LoadLogs(){
+  const id=document.getElementById('pm2-log-sel')?.value;
+  if(!id){toast('⚠ Select a process',true);return;}
+  const lb=document.getElementById('pm2-logbox');
+  if(lb)lb.textContent='Loading...';
+  const d=await api('/api/pm2/logs/'+id);
+  if(lb){lb.textContent=d.logs||'No logs.';lb.scrollTop=lb.scrollHeight;}
+}
+
+async function pm2Flush(){
+  const id=document.getElementById('pm2-log-sel')?.value;
+  if(!id){toast('⚠ Select a process',true);return;}
+  await post('/api/pm2/flush/'+id,{});
+  toast('✓ Logs flushed');
+  const lb=document.getElementById('pm2-logbox');if(lb)lb.textContent='Logs cleared.';
+}
+
+// ── FIREWALL ──
+function buildFirewall(body){
+  body.innerHTML=`
+    <div class="panel">
+      <div class="section-title">Status</div>
+      <div id="fw-status" style="font-family:'Share Tech Mono',monospace;font-size:.68rem;color:var(--secondary);background:rgba(0,0,0,0.2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:14px;white-space:pre-wrap;max-height:80px;overflow-y:auto;">Loading...</div>
+      <div class="btn-row" style="margin-bottom:16px;">
+        <button class="btn btn-green" onclick="fwToggle(true)">▶ Enable UFW</button>
+        <button class="btn btn-danger" onclick="fwToggle(false)">⏹ Disable UFW</button>
+        <button class="btn" onclick="fwLoad()">↻ Refresh</button>
+      </div>
+      <div class="section-title">Rules</div>
+      <div style="overflow:auto;max-height:160px;margin-bottom:14px;">
+        <table class="tbl">
+          <thead><tr><th>Rule</th><th>Action</th></tr></thead>
+          <tbody id="fw-rules"><tr><td colspan="2" style="text-align:center;padding:12px;color:var(--muted2);">Loading...</td></tr></tbody>
+        </table>
+      </div>
+      <div class="section-title">Add Rule</div>
+      <div class="btn-row">
+        <input class="inp" id="fw-port" placeholder="Port (e.g. 80)" style="width:140px;" type="number" min="1" max="65535">
+        <select class="select" id="fw-proto"><option value="tcp">TCP</option><option value="udp">UDP</option></select>
+        <button class="btn btn-green" onclick="fwAllow()">+ Allow</button>
+        <button class="btn btn-danger" onclick="fwDeny()">✕ Deny</button>
+      </div>
+      <div class="logbox" id="fw-output" style="max-height:80px;">─</div>
+    </div>`;
+  fwLoad();
+}
+
+async function fwLoad(){
+  const d=await api('/api/firewall/status');
+  const st=document.getElementById('fw-status');
+  if(st)st.textContent=d.status||'UFW not available';
+  const rules=(d.rules||'').split('\n').filter(l=>/^\[/.test(l));
+  const tb=document.getElementById('fw-rules');
+  if(!tb)return;
+  if(!rules.length){tb.innerHTML='<tr><td colspan="2" style="text-align:center;padding:10px;color:var(--muted2);">No rules</td></tr>';return;}
+  tb.innerHTML=rules.map(r=>{
+    const m=r.match(/^\[(\d+)\]\s+(.+)/);if(!m)return'';
+    const num=m[1];const rule=m[2].trim();
+    const isAllow=rule.toLowerCase().includes('allow');
+    return`<tr>
+      <td style="font-family:'Share Tech Mono',monospace;font-size:.7rem;">[${num}] ${rule}</td>
+      <td><button class="btn btn-danger" onclick="fwDelete('${num}')">✕ Delete</button></td>
+    </tr>`;
+  }).join('');
+}
+
+async function fwAllow(){
+  const port=document.getElementById('fw-port')?.value;
+  const proto=document.getElementById('fw-proto')?.value;
+  if(!port)return;
+  const d=await post('/api/firewall/allow',{port,proto});
+  const out=document.getElementById('fw-output');if(out)out.textContent=d.output||'Done';
+  if(d.success){toast(`✓ Port ${port}/${proto} allowed`);fwLoad();}
+  else toast('⚠ '+(d.output||'Failed'),true);
+}
+
+async function fwDeny(){
+  const port=document.getElementById('fw-port')?.value;
+  const proto=document.getElementById('fw-proto')?.value;
+  if(!port)return;
+  const d=await post('/api/firewall/deny',{port,proto});
+  const out=document.getElementById('fw-output');if(out)out.textContent=d.output||'Done';
+  if(d.success){toast(`✓ Port ${port}/${proto} denied`);fwLoad();}
+  else toast('⚠ Failed',true);
+}
+
+async function fwDelete(rule){
+  if(!confirm(`Delete rule [${rule}]?`))return;
+  const d=await post('/api/firewall/delete',{rule});
+  if(d.success){toast('✓ Rule deleted');fwLoad();}
+  else toast('⚠ Failed',true);
+}
+
+async function fwToggle(enable){
+  const d=await post('/api/firewall/toggle',{enable});
+  toast(enable?'✓ UFW enabled':'✓ UFW disabled');
+  fwLoad();
+}
+
+// ── CRON ──
+function buildCron(body){
+  body.innerHTML=`
+    <div class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div class="section-title" style="margin:0;">Crontab Editor</div>
+        <div class="btn-row">
+          <button class="btn" onclick="cronLoad()">↻ Load</button>
+          <button class="btn btn-primary" onclick="cronSave()">💾 Save</button>
+        </div>
+      </div>
+      <div style="font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--muted2);margin-bottom:8px;">
+        Format: [min] [hour] [day] [month] [weekday] [command]
+      </div>
+      <textarea class="code-area" id="cron-editor" style="flex:none;height:220px;background:rgba(0,0,0,0.25);border:1px solid var(--border);border-radius:8px;" placeholder="# No cron jobs yet&#10;# Example:&#10;# */5 * * * * /usr/bin/backup.sh"></textarea>
+      <div class="section-title" style="margin-top:14px;">Quick Add</div>
+      <div class="btn-row" style="flex-wrap:wrap;">
+        <button class="btn" onclick="cronQuick('0 * * * *','# Hourly')">Every Hour</button>
+        <button class="btn" onclick="cronQuick('0 0 * * *','# Daily midnight')">Daily</button>
+        <button class="btn" onclick="cronQuick('0 0 * * 0','# Weekly Sunday')">Weekly</button>
+        <button class="btn" onclick="cronQuick('@reboot','# On reboot')">On Reboot</button>
+      </div>
+      <div class="logbox" id="cron-output" style="max-height:60px;margin-top:8px;">─</div>
+    </div>`;
+  cronLoad();
+}
+
+async function cronLoad(){
+  const d=await api('/api/cron/list');
+  const ed=document.getElementById('cron-editor');
+  if(ed)ed.value=d.raw||'';
+}
+
+async function cronSave(){
+  const content=document.getElementById('cron-editor')?.value||'';
+  const d=await post('/api/cron/save',{content});
+  const out=document.getElementById('cron-output');if(out)out.textContent=d.output||'Done';
+  if(d.success)toast('✓ Crontab saved');
+  else toast('⚠ '+d.output,true);
+}
+
+function cronQuick(schedule,comment){
+  const ed=document.getElementById('cron-editor');
+  if(!ed)return;
+  const cmd=prompt('Command to run:');
+  if(!cmd)return;
+  ed.value+=(ed.value&&!ed.value.endsWith('\n')?'\n':'')+comment+'\n'+schedule+' '+cmd+'\n';
+}
+
+// ── USERS ──
+function buildUsers(body){
+  body.innerHTML=`
+    <div class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div class="section-title" style="margin:0;">System Users</div>
+        <div class="btn-row">
+          <button class="btn" onclick="usersLoad()">↻ Refresh</button>
+          <button class="btn btn-primary" onclick="openModal('adduser')">+ Add User</button>
+        </div>
+      </div>
+      <div style="overflow:auto;">
+        <table class="tbl">
+          <thead><tr><th>Username</th><th>UID</th><th>Home</th><th>Shell</th><th>Actions</th></tr></thead>
+          <tbody id="users-body"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted2);">Loading...</td></tr></tbody>
+        </table>
+      </div>
+      <div class="section-title" style="margin-top:14px;">Change Password</div>
+      <div class="btn-row">
+        <input class="inp" id="usr-passwd-name" placeholder="Username" style="width:150px;">
+        <input class="inp" type="password" id="usr-passwd-pass" placeholder="New password" style="width:170px;">
+        <button class="btn" onclick="userPasswd()">🔑 Change</button>
+      </div>
+    </div>`;
+  usersLoad();
+}
+
+async function usersLoad(){
+  const d=await api('/api/users/list');
+  const tb=document.getElementById('users-body');if(!tb)return;
+  tb.innerHTML=d.users.map(u=>`
+    <tr>
+      <td style="font-weight:600;font-size:.78rem;">${u.name}</td>
+      <td style="font-family:'Share Tech Mono',monospace;font-size:.7rem;color:var(--secondary);">${u.uid}</td>
+      <td style="font-family:'Share Tech Mono',monospace;font-size:.68rem;color:var(--muted2);">${u.home||'─'}</td>
+      <td style="font-family:'Share Tech Mono',monospace;font-size:.65rem;color:var(--muted2);">${u.shell||'─'}</td>
+      <td>${u.name!=='root'?`<button class="btn btn-danger" onclick="userDelete('${u.name}')">✕ Delete</button>`:'<span style="color:var(--muted2);font-size:.65rem;">root</span>'}</td>
+    </tr>`).join('');
+}
+
+async function doAddUser(){
+  const user=document.getElementById('au-user')?.value.trim();
+  const pass=document.getElementById('au-pass')?.value;
+  const sudo=document.getElementById('au-sudo')?.checked;
+  if(!user)return;
+  const d=await post('/api/users/add',{username:user,password:pass,sudo});
+  closeModal('adduser');
+  if(d.success){toast('✓ User '+user+' created');usersLoad();}
+  else toast('⚠ '+(d.output||d.error||'Failed'),true);
+}
+
+async function userDelete(name){
+  if(!confirm(`Delete user "${name}" and their home directory?`))return;
+  const d=await post('/api/users/delete',{username:name});
+  if(d.success){toast('✓ User deleted');usersLoad();}
+  else toast('⚠ '+(d.output||'Failed'),true);
+}
+
+async function userPasswd(){
+  const name=document.getElementById('usr-passwd-name')?.value.trim();
+  const pass=document.getElementById('usr-passwd-pass')?.value;
+  if(!name||!pass)return;
+  const d=await post('/api/users/passwd',{username:name,password:pass});
+  if(d.success)toast('✓ Password changed for '+name);
+  else toast('⚠ '+(d.output||'Failed'),true);
+}
+
+// ── NGINX ──
+function buildNginx(body){
+  body.innerHTML=`
+    <div class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div class="section-title" style="margin:0;">Nginx Sites</div>
+        <div class="btn-row">
+          <button class="btn" onclick="nginxLoad()">↻ Refresh</button>
+          <button class="btn btn-green" onclick="nginxReload()">↺ Reload Nginx</button>
+        </div>
+      </div>
+      <div style="overflow:auto;max-height:180px;">
+        <table class="tbl">
+          <thead><tr><th>Site</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="nginx-body"><tr><td colspan="3" style="text-align:center;padding:16px;color:var(--muted2);">Loading...</td></tr></tbody>
+        </table>
+      </div>
+      <div class="section-title" style="margin-top:14px;">Config Editor</div>
+      <div class="btn-row" style="margin-bottom:8px;">
+        <select class="select" id="nginx-site-sel"><option value="">Select site...</option></select>
+        <button class="btn" onclick="nginxLoadConfig()">Load Config</button>
+        <button class="btn btn-primary" onclick="nginxSaveConfig()">💾 Save</button>
+      </div>
+      <textarea class="code-area" id="nginx-editor" style="flex:none;height:180px;background:rgba(0,0,0,0.25);border:1px solid var(--border);border-radius:8px;" placeholder="Select a site to edit its config..."></textarea>
+      <div class="logbox" id="nginx-output" style="max-height:60px;margin-top:8px;">─</div>
+    </div>`;
+  nginxLoad();
+}
+
+async function nginxLoad(){
+  const d=await api('/api/nginx/sites');
+  const sel=document.getElementById('nginx-site-sel');
+  if(sel){
+    const cur=sel.value;
+    sel.innerHTML='<option value="">Select site...</option>'+(d.available||[]).map(s=>`<option value="${s}">${s}</option>`).join('');
+    if(cur)sel.value=cur;
+  }
+  const tb=document.getElementById('nginx-body');if(!tb)return;
+  const enabled=new Set(d.enabled||[]);
+  const st=d.status==='active'?'badge-green':'badge-red';
+  tb.innerHTML=(d.available||[]).map(site=>`
+    <tr>
+      <td style="font-family:'Share Tech Mono',monospace;font-size:.75rem;">${site}</td>
+      <td><span class="badge ${enabled.has(site)?'badge-green':'badge-red'}"><span class="bdot"></span>${enabled.has(site)?'enabled':'disabled'}</span></td>
+      <td><div class="btn-row">
+        ${enabled.has(site)
+          ?`<button class="btn btn-danger" onclick="nginxDisable('${site}')">Disable</button>`
+          :`<button class="btn btn-green" onclick="nginxEnable('${site}')">Enable</button>`}
+      </div></td>
+    </tr>`).join('')||'<tr><td colspan="3" style="text-align:center;padding:12px;color:var(--muted2);">Nginx not found or no sites configured</td></tr>';
+}
+
+async function nginxEnable(site){
+  const d=await post('/api/nginx/enable/'+site,{});
+  if(d.success){toast('✓ '+site+' enabled');nginxLoad();}
+  else toast('⚠ '+d.output,true);
+}
+
+async function nginxDisable(site){
+  const d=await post('/api/nginx/disable/'+site,{});
+  if(d.success){toast('✓ '+site+' disabled');nginxLoad();}
+  else toast('⚠ Failed',true);
+}
+
+async function nginxReload(){
+  const d=await post('/api/nginx/reload',{});
+  const out=document.getElementById('nginx-output');if(out)out.textContent=d.output||'Done';
+  if(d.success)toast('✓ Nginx reloaded');
+  else toast('⚠ Config test failed',true);
+}
+
+async function nginxLoadConfig(){
+  const site=document.getElementById('nginx-site-sel')?.value;
+  if(!site){toast('⚠ Select a site',true);return;}
+  const d=await api('/api/nginx/config/'+site);
+  const ed=document.getElementById('nginx-editor');
+  if(ed)ed.value=d.content||'';
+}
+
+async function nginxSaveConfig(){
+  const site=document.getElementById('nginx-site-sel')?.value;
+  if(!site){toast('⚠ Select a site',true);return;}
+  const content=document.getElementById('nginx-editor')?.value||'';
+  const d=await post('/api/nginx/config/'+site,{content});
+  if(d.success)toast('✓ Config saved');
+  else toast('⚠ Failed',true);
+}
+
+// ── PACKAGES ──
+function buildPackages(body){
+  body.innerHTML=`
+    <div class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div class="section-title" style="margin:0;">Package Manager (apt)</div>
+        <button class="btn" onclick="pkgCheckUpdates()">↻ Check Updates</button>
+      </div>
+      <div class="section-title">Install / Remove</div>
+      <div class="btn-row" style="margin-bottom:14px;">
+        <input class="inp" id="pkg-name" placeholder="Package name (e.g. htop)" style="flex:1;">
+        <button class="btn btn-green" onclick="pkgInstall()">⬇ Install</button>
+        <button class="btn btn-danger" onclick="pkgRemove()">✕ Remove</button>
+      </div>
+      <div class="logbox" id="pkg-output" style="min-height:60px;max-height:100px;">─</div>
+      <div class="section-title" style="margin-top:14px;">Available Updates (<span id="pkg-update-count">─</span>)</div>
+      <div style="overflow:auto;max-height:200px;">
+        <table class="tbl">
+          <thead><tr><th>Package</th><th>New Version</th></tr></thead>
+          <tbody id="pkg-updates"><tr><td colspan="2" style="text-align:center;padding:16px;color:var(--muted2);">Click "Check Updates" to fetch list...</td></tr></tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+async function pkgCheckUpdates(){
+  const tb=document.getElementById('pkg-updates');
+  if(tb)tb.innerHTML='<tr><td colspan="2" style="text-align:center;padding:12px;color:var(--muted2);">Checking... (may take a moment)</td></tr>';
+  const d=await api('/api/packages/updates');
+  document.getElementById('pkg-update-count').textContent=d.count||0;
+  if(!tb)return;
+  if(!d.packages?.length){tb.innerHTML='<tr><td colspan="2" style="text-align:center;padding:12px;color:var(--green);">✓ All packages up to date!</td></tr>';return;}
+  tb.innerHTML=d.packages.slice(0,50).map(p=>`
+    <tr>
+      <td style="font-family:'Share Tech Mono',monospace;font-size:.72rem;">${p.name}</td>
+      <td style="font-family:'Share Tech Mono',monospace;font-size:.68rem;color:var(--amber);">${p.version}</td>
+    </tr>`).join('');
+}
+
+async function pkgInstall(){
+  const name=document.getElementById('pkg-name')?.value.trim();
+  if(!name)return;
+  const out=document.getElementById('pkg-output');
+  if(out)out.textContent='Installing '+name+'... (may take a minute)';
+  toast('Installing '+name+'...',false);
+  const d=await api('/api/packages/install',{method:'POST',body:JSON.stringify({name}),headers:{'Content-Type':'application/json'}});
+  if(out)out.textContent=d.output||'Done';
+  if(d.success)toast('✓ '+name+' installed');
+  else toast('⚠ Install failed',true);
+}
+
+async function pkgRemove(){
+  const name=document.getElementById('pkg-name')?.value.trim();
+  if(!name||!confirm('Remove package "'+name+'"?'))return;
+  const out=document.getElementById('pkg-output');
+  if(out)out.textContent='Removing '+name+'...';
+  const d=await api('/api/packages/remove',{method:'POST',body:JSON.stringify({name}),headers:{'Content-Type':'application/json'}});
+  if(out)out.textContent=d.output||'Done';
+  if(d.success)toast('✓ '+name+' removed');
+  else toast('⚠ Failed',true);
+}
+
+// ── MODALS ──
+function openModal(id){
+  document.getElementById('modal-'+id).classList.add('show');
+  const inp=document.querySelector('#modal-'+id+' input');
+  if(inp)setTimeout(()=>inp.focus(),50);
+}
+function closeModal(id){document.getElementById('modal-'+id).classList.remove('show');}
+
+// ── LOGOUT ──
+async function logout(){
+  if(!confirm('Logout?'))return;
+  await fetch('/api/logout',{method:'POST'});
+  location.href='/';
+}
+
+// ── KEYBOARD ──
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){
+    document.querySelectorAll('.modal-overlay.show').forEach(m=>m.classList.remove('show'));
+    document.getElementById('ctx-menu').style.display='none';
+  }
+});
+
+// ── AUTO OPEN MONITOR ──
+setTimeout(()=>openApp('monitor'),200);
+
+// ── MOBILE DETECTION & INIT ──
+function isMobile(){ return window.innerWidth <= 768; }
+
+function initMobile(){
+  if(!isMobile()) return;
+  document.getElementById('desktop').style.display='none';
+  document.getElementById('taskbar').style.display='none';
+  document.getElementById('sysbar').style.display='none';
+  document.querySelectorAll('.modal-overlay').forEach(m=>m.style.display='none');
+  const mobileUI = document.getElementById('mobile-ui');
+  if(mobileUI) mobileUI.style.display='flex';
+  mobilePm2Load();
+  mobileLoadSysInfo();
+}
+
+window.addEventListener('resize',()=>{
+  if(isMobile()) initMobile();
+  else {
+    const m=document.getElementById('mobile-ui');
+    if(m) m.style.display='none';
+    document.getElementById('desktop').style.display='';
+    document.getElementById('taskbar').style.display='';
+    document.getElementById('sysbar').style.display='';
+  }
+});
+
+// Mobile socket stats
+socket.on('stats', d => {
+  if(!isMobile()) return;
+  const cpu = parseFloat(d.cpu_usage_percent);
+  const ram = parseFloat(d.ram_percent);
+
+  // CPU arc
+  const cpuCirc = 2*Math.PI*54;
+  const cpuEl = document.getElementById('m-cpu-arc');
+  if(cpuEl){
+    cpuEl.style.strokeDashoffset = cpuCirc - (cpu/100)*cpuCirc;
+    const cc = cpu>80?'#ff3d5a':cpu>60?'#ffb300':'#00ff88';
+    cpuEl.style.stroke = cc;
+    cpuEl.style.filter = `drop-shadow(0 0 8px ${cc})`;
+  }
+  const cpuValEl = document.getElementById('m-cpu-val');
+  if(cpuValEl){ cpuValEl.textContent=cpu.toFixed(1)+'%'; cpuValEl.style.color=cpu>80?'#ff3d5a':cpu>60?'#ffb300':'#00ff88'; }
+
+  // RAM arc
+  const ramCirc = 2*Math.PI*54;
+  const ramEl = document.getElementById('m-ram-arc');
+  if(ramEl){
+    ramEl.style.strokeDashoffset = ramCirc - (ram/100)*ramCirc;
+    const rc = ram>80?'#ff3d5a':ram>60?'#ffb300':'#00e5ff';
+    ramEl.style.stroke = rc;
+    ramEl.style.filter = `drop-shadow(0 0 8px ${rc})`;
+  }
+  const ramValEl = document.getElementById('m-ram-val');
+  if(ramValEl){ ramValEl.textContent=ram.toFixed(1)+'%'; ramValEl.style.color=ram>80?'#ff3d5a':ram>60?'#ffb300':'#00e5ff'; }
+
+  const ramGbEl = document.getElementById('m-ram-gb');
+  if(ramGbEl) ramGbEl.textContent=`${d.ram_used_gb} / ${(parseFloat(d.ram_used_gb)+parseFloat(d.ram_free_gb)).toFixed(1)} GB`;
+
+  // Uptime
+  const sec = parseInt(d.uptime||0);
+  const days=Math.floor(sec/86400), hrs=Math.floor((sec%86400)/3600), mins=Math.floor((sec%3600)/60);
+  const utEl=document.getElementById('m-uptime');
+  if(utEl) utEl.textContent=`${days}d ${String(hrs).padStart(2,'0')}h ${String(mins).padStart(2,'0')}m`;
+
+  // Load avg
+  const laEl=document.getElementById('m-load');
+  if(laEl&&d.load_avg) laEl.textContent=d.load_avg.join(' · ');
+
+  // Eco
+  const eco=(cpu*0.5+ram*0.5);
+  const ecoEl=document.getElementById('m-eco-status');
+  const ecoBarEl=document.getElementById('m-eco-bar');
+  const ecoScoreEl=document.getElementById('m-eco-score');
+  if(ecoEl){
+    let icon,text,color;
+    if(eco<40){icon='🌿';text='Eco Optimal';color='#00ff88';}
+    else if(eco<65){icon='⚡';text='Eco Good';color='#00e5ff';}
+    else if(eco<80){icon='⚠️';text='Moderate Load';color='#ffb300';}
+    else{icon='🔥';text='High Load';color='#ff3d5a';}
+    ecoEl.textContent=icon+' '+text;
+    ecoEl.style.color=color;
+  }
+  if(ecoBarEl){ const score=Math.max(0,100-eco); ecoBarEl.style.width=score+'%'; ecoBarEl.style.background=eco<40?'#00ff88':eco<65?'#00e5ff':eco<80?'#ffb300':'#ff3d5a'; }
+  if(ecoScoreEl){ ecoScoreEl.textContent=Math.round(Math.max(0,100-eco))+'/100'; }
+
+  // CPU bar
+  const cpuBarEl=document.getElementById('m-cpu-bar');
+  if(cpuBarEl){ cpuBarEl.style.width=cpu+'%'; cpuBarEl.style.background=cpu>80?'#ff3d5a':cpu>60?'#ffb300':'#00ff88'; }
+  const ramBarEl=document.getElementById('m-ram-bar');
+  if(ramBarEl){ ramBarEl.style.width=ram+'%'; ramBarEl.style.background=ram>80?'#ff3d5a':ram>60?'#ffb300':'#00e5ff'; }
+
+  // CPU sparkline
+  mobileCpuHistory.push(cpu); if(mobileCpuHistory.length>20) mobileCpuHistory.shift();
+  drawSparkline();
+});
+
+let mobileCpuHistory = new Array(20).fill(0);
+function drawSparkline(){
+  const canvas=document.getElementById('m-sparkline');
+  if(!canvas) return;
+  const ctx=canvas.getContext('2d');
+  const w=canvas.width, h=canvas.height;
+  ctx.clearRect(0,0,w,h);
+  const max=Math.max(100,...mobileCpuHistory);
+  const pts=mobileCpuHistory.map((v,i)=>({ x:(i/(mobileCpuHistory.length-1))*w, y:h-(v/max)*h*0.85-4 }));
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x,pts[0].y);
+  pts.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));
+  ctx.strokeStyle='#00ff88';ctx.lineWidth=2;ctx.stroke();
+  ctx.lineTo(w,h);ctx.lineTo(0,h);ctx.closePath();
+  const g=ctx.createLinearGradient(0,0,0,h);
+  g.addColorStop(0,'rgba(0,255,136,0.3)');g.addColorStop(1,'rgba(0,255,136,0)');
+  ctx.fillStyle=g;ctx.fill();
+}
+
+async function mobileLoadSysInfo(){
+  try{
+    const d = await (await fetch('/api/sysinfo')).json();
+    const el=document.getElementById('m-sysinfo');
+    if(el) el.textContent=`${d.hostname} · ${d.public_ip} · ${d.os.split(' ').slice(0,2).join(' ')}`;
+  }catch{}
+  try{
+    const d = await (await fetch('/api/stats')).json();
+    const diskEl=document.getElementById('m-disk');
+    if(diskEl&&d.disk) diskEl.textContent=`${d.disk.used} / ${d.disk.total} (${d.disk.percent})`;
+    const coreEl=document.getElementById('m-cores');
+    if(coreEl) coreEl.textContent=d.cpu_cores+' cores · '+((d.cpu_model||'').substring(0,20));
+  }catch{}
+}
+
+let mobilePm2Data=[];
+async function mobilePm2Load(){
+  try{
+    const d=await (await fetch('/api/pm2/list')).json();
+    mobilePm2Data=d;
+    renderMobilePm2(d);
+  }catch{
+    const el=document.getElementById('m-pm2-list');
+    if(el) el.innerHTML='<div class="m-empty">PM2 not available</div>';
+  }
+}
+
+function renderMobilePm2(list){
+  const el=document.getElementById('m-pm2-list');
+  if(!el) return;
+  if(!list.length){ el.innerHTML='<div class="m-empty">No PM2 processes running</div>'; return; }
+  el.innerHTML=list.map(p=>{
+    const mem=p.memory?(p.memory/1024/1024).toFixed(1)+' MB':'─';
+    const cpu=p.cpu!==undefined?p.cpu.toFixed(1)+'%':'─';
+    const st=p.status||'unknown';
+    const online=st==='online';
+    return `<div class="m-pm2-card">
+      <div class="m-pm2-top">
+        <div class="m-pm2-info">
+          <div class="m-pm2-name">${p.name}</div>
+          <div class="m-pm2-meta">ID: ${p.id} · PID: ${p.pid||'─'}</div>
+        </div>
+        <span class="m-badge ${online?'m-badge-green':st==='stopped'?'m-badge-red':'m-badge-amber'}">${st}</span>
+      </div>
+      <div class="m-pm2-stats">
+        <div class="m-pm2-stat"><div class="m-pm2-stat-val" style="color:${parseFloat(p.cpu||0)>50?'#ff3d5a':'#00ff88'}">${cpu}</div><div class="m-pm2-stat-lbl">CPU</div></div>
+        <div class="m-pm2-stat"><div class="m-pm2-stat-val" style="color:#00e5ff">${mem}</div><div class="m-pm2-stat-lbl">RAM</div></div>
+        <div class="m-pm2-stat"><div class="m-pm2-stat-val" style="color:var(--secondary)">${p.restarts??0}</div><div class="m-pm2-stat-lbl">Restarts</div></div>
+      </div>
+      <div class="m-pm2-actions">
+        <button class="m-act-btn m-act-restart" onclick="mobilePm2Act('restart',${p.id},'${p.name}')">↺ Restart</button>
+        ${online
+          ? `<button class="m-act-btn m-act-stop" onclick="mobilePm2Act('stop',${p.id},'${p.name}')">⏸ Stop</button>`
+          : `<button class="m-act-btn m-act-start" onclick="mobilePm2Act('start',${p.id},'${p.name}')">▶ Start</button>`
+        }
+        <button class="m-act-btn m-act-delete" onclick="mobilePm2Act('delete',${p.id},'${p.name}')">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function mobilePm2Act(action,id,name){
+  mobileToast(`${action}ing ${name}...`);
+  try{
+    const r=await fetch(`/api/pm2/${action}/${id}`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    const d=await r.json();
+    if(d.success){ mobileToast(`✓ ${name} ${action}ed`); setTimeout(mobilePm2Load,1200); }
+    else mobileToast('⚠ '+(d.error||'Failed'),true);
+  }catch{ mobileToast('⚠ Request failed',true); }
+}
+
+async function mobileRamOptimize(){
+  mobileToast('⚡ Optimizing RAM...');
+  await fetch('/api/system/ram-optimize',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+  mobileToast('✓ RAM optimization triggered!');
+}
+
+function mobileShowPage(page){
+  document.querySelectorAll('.m-page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.m-nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('m-page-'+page).classList.add('active');
+  document.getElementById('m-nav-'+page).classList.add('active');
+  if(page==='pm2') mobilePm2Load();
+}
+
+let mToastTimer;
+function mobileToast(msg,isErr=false){
+  const t=document.getElementById('m-toast');
+  if(!t) return;
+  t.textContent=msg;
+  t.style.background=isErr?'rgba(255,61,90,0.15)':'rgba(0,255,136,0.12)';
+  t.style.borderColor=isErr?'rgba(255,61,90,0.4)':'rgba(0,255,136,0.3)';
+  t.style.color=isErr?'#ff3d5a':'#00ff88';
+  t.classList.add('show');
+  clearTimeout(mToastTimer);
+  mToastTimer=setTimeout(()=>t.classList.remove('show'),3000);
+}
+
+async function mobileLogout(){
+  if(!confirm('Logout?')) return;
+  await fetch('/api/logout',{method:'POST'});
+  location.href='/';
+}
+
+// Clock for mobile
+setInterval(()=>{
+  const n=new Date();
+  const el=document.getElementById('m-clock');
+  if(el) el.textContent=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0')+':'+String(n.getSeconds()).padStart(2,'0');
+},1000);
+
+window.addEventListener('DOMContentLoaded', initMobile);
+</script>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- MOBILE UI                                   -->
+<!-- ═══════════════════════════════════════════ -->
+<div id="mobile-ui" style="display:none;flex-direction:column;min-height:100vh;position:fixed;inset:0;z-index:5000;background:var(--bg);overflow:hidden;">
+
+<style>
+/* ── MOBILE STYLES ── */
+.m-topbar {
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px;
+  background:rgba(4,12,20,0.95);
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+  backdrop-filter:blur(20px);
+}
+.m-topbar-logo { display:flex;align-items:center;gap:8px; }
+.m-topbar-logo-icon { width:28px;height:28px;border:1px solid var(--cyan);border-radius:6px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 12px rgba(0,229,255,0.3); }
+.m-topbar-logo-icon svg { width:14px;height:14px; }
+.m-topbar-title { font-size:.8rem;font-weight:700;color:var(--cyan);letter-spacing:.08em;text-transform:uppercase; }
+.m-topbar-right { display:flex;align-items:center;gap:12px; }
+.m-clock { font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--secondary); }
+.m-live { display:flex;align-items:center;gap:5px;font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--green); }
+.m-pulse { width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:pulse 1.5s ease-in-out infinite; }
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.7)}}
+
+.m-sysinfo-bar {
+  padding:6px 16px;background:rgba(0,0,0,0.3);border-bottom:1px solid var(--border);
+  font-family:'Share Tech Mono',monospace;font-size:.58rem;color:var(--muted2);letter-spacing:.05em;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0;
+}
+
+.m-pages { flex:1;overflow:hidden;position:relative; }
+.m-page { display:none;position:absolute;inset:0;overflow-y:auto;padding:14px; }
+.m-page::-webkit-scrollbar{width:3px;}
+.m-page::-webkit-scrollbar-thumb{background:var(--border-hi);border-radius:99px;}
+.m-page.active { display:block; }
+
+.m-navbar {
+  display:flex;align-items:center;
+  background:rgba(4,12,20,0.97);
+  border-top:1px solid var(--border);
+  flex-shrink:0;
+  padding:0;
+  backdrop-filter:blur(20px);
+}
+.m-nav-btn {
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:10px 4px 8px;border:none;background:transparent;
+  color:var(--muted2);cursor:pointer;transition:all .2s;
+  font-family:'Exo 2',sans-serif;font-size:.55rem;font-weight:600;
+  letter-spacing:.06em;text-transform:uppercase;
+}
+.m-nav-btn .m-nav-icon { font-size:1.2rem;line-height:1; }
+.m-nav-btn.active { color:var(--cyan); }
+.m-nav-btn.active .m-nav-icon { filter:drop-shadow(0 0 6px var(--cyan)); }
+
+/* ── MONITOR CARDS ── */
+.m-gauges-row {
+  display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;
+}
+.m-gauge-card {
+  background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;
+  display:flex;flex-direction:column;align-items:center;gap:8px;
+  position:relative;overflow:hidden;
+}
+.m-gauge-card::before { content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,229,255,0.3),transparent); }
+.m-gauge-label { font-family:'Share Tech Mono',monospace;font-size:.58rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted2); }
+.m-gauge-label::before { content:'// ';color:var(--cyan);opacity:.5; }
+.m-gauge-svg { position:relative;width:120px;height:120px; }
+.m-gauge-svg svg { transform:rotate(-90deg); }
+.m-gauge-center { position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center; }
+.m-gauge-val { font-family:'Share Tech Mono',monospace;font-size:1.4rem;line-height:1;transition:color .5s; }
+.m-gauge-sub { font-size:.5rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted2);margin-top:2px; }
+.m-gauge-detail { font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--secondary);text-align:center; }
+
+.m-card {
+  background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;
+  margin-bottom:12px;position:relative;overflow:hidden;
+}
+.m-card::before { content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,229,255,0.2),transparent); }
+.m-card-title { font-family:'Share Tech Mono',monospace;font-size:.58rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted2);margin-bottom:10px; }
+.m-card-title::before { content:'// ';color:var(--cyan);opacity:.5; }
+
+.m-spark-wrap { position:relative;height:60px;margin:4px 0; }
+.m-spark-wrap canvas { width:100%!important;height:60px!important; }
+
+.m-info-grid { display:grid;grid-template-columns:1fr 1fr;gap:8px; }
+.m-info-item { background:rgba(0,0,0,0.2);border:1px solid var(--border);border-radius:8px;padding:10px; }
+.m-info-val { font-family:'Share Tech Mono',monospace;font-size:.9rem;color:var(--cyan);line-height:1; }
+.m-info-lbl { font-size:.55rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted2);margin-top:3px; }
+
+.m-bar-row { margin-bottom:8px; }
+.m-bar-header { display:flex;justify-content:space-between;align-items:center;margin-bottom:4px; }
+.m-bar-label { font-family:'Share Tech Mono',monospace;font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted2); }
+.m-bar-val { font-family:'Share Tech Mono',monospace;font-size:.65rem;color:var(--secondary); }
+.m-bar-track { height:6px;background:#0a2030;border-radius:99px;overflow:hidden; }
+.m-bar-fill { height:100%;border-radius:99px;transition:width .8s cubic-bezier(.4,0,.2,1),background .5s; }
+
+.m-eco-row { display:flex;align-items:center;gap:12px;margin-bottom:12px; }
+.m-eco-icon { font-size:2rem; }
+.m-eco-status { font-size:.95rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;transition:color .5s; }
+.m-eco-sub { font-size:.65rem;color:var(--secondary);margin-top:2px;font-family:'Share Tech Mono',monospace; }
+.m-eco-score { font-family:'Share Tech Mono',monospace;font-size:.65rem;color:var(--muted2);margin-top:8px;text-align:right; }
+
+.m-opt-btn {
+  width:100%;padding:14px;border-radius:12px;border:1px solid var(--cyan);
+  background:rgba(0,229,255,0.08);color:var(--cyan);
+  font-family:'Exo 2',sans-serif;font-size:.85rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+  cursor:pointer;transition:all .2s;margin-top:8px;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.m-opt-btn:active { transform:scale(.97);background:rgba(0,229,255,0.15); }
+
+/* ── PM2 ── */
+.m-pm2-header { display:flex;align-items:center;justify-content:space-between;margin-bottom:12px; }
+.m-pm2-title { font-family:'Share Tech Mono',monospace;font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted2); }
+.m-pm2-title::before { content:'// ';color:var(--cyan);opacity:.5; }
+.m-refresh-btn { padding:6px 14px;border-radius:8px;border:1px solid var(--border-hi);background:transparent;color:var(--secondary);font-family:'Share Tech Mono',monospace;font-size:.62rem;cursor:pointer;transition:all .2s; }
+.m-refresh-btn:active { border-color:var(--cyan);color:var(--cyan); }
+
+.m-pm2-card {
+  background:var(--card);border:1px solid var(--border);border-radius:14px;
+  padding:14px;margin-bottom:10px;
+  position:relative;overflow:hidden;
+  animation:fadeUp .3s ease both;
+}
+.m-pm2-card::before { content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,229,255,0.2),transparent); }
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.m-pm2-top { display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px; }
+.m-pm2-name { font-size:.95rem;font-weight:700;color:var(--text);letter-spacing:.03em; }
+.m-pm2-meta { font-family:'Share Tech Mono',monospace;font-size:.58rem;color:var(--muted2);margin-top:3px; }
+.m-badge { display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:99px;font-family:'Share Tech Mono',monospace;font-size:.58rem;letter-spacing:.05em; }
+.m-badge-green { background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.3);color:var(--green); }
+.m-badge-red { background:rgba(255,61,90,0.1);border:1px solid rgba(255,61,90,0.3);color:var(--red); }
+.m-badge-amber { background:rgba(255,179,0,0.1);border:1px solid rgba(255,179,0,0.3);color:var(--amber); }
+.m-pm2-stats { display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px; }
+.m-pm2-stat { background:rgba(0,0,0,0.2);border:1px solid var(--border);border-radius:8px;padding:8px;text-align:center; }
+.m-pm2-stat-val { font-family:'Share Tech Mono',monospace;font-size:.85rem;line-height:1; }
+.m-pm2-stat-lbl { font-size:.52rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted2);margin-top:3px; }
+.m-pm2-actions { display:flex;gap:8px; }
+.m-act-btn {
+  flex:1;padding:10px 0;border-radius:9px;border:1px solid var(--border-hi);
+  background:transparent;color:var(--secondary);
+  font-family:'Share Tech Mono',monospace;font-size:.65rem;letter-spacing:.05em;
+  cursor:pointer;transition:all .15s;
+}
+.m-act-btn:active { transform:scale(.96); }
+.m-act-restart:active,.m-act-restart:hover { border-color:var(--cyan);color:var(--cyan);background:rgba(0,229,255,0.08); }
+.m-act-stop:active,.m-act-stop:hover { border-color:var(--amber);color:var(--amber);background:rgba(255,179,0,0.08); }
+.m-act-start:active,.m-act-start:hover { border-color:var(--green);color:var(--green);background:rgba(0,255,136,0.08); }
+.m-act-delete { flex:0 0 44px!important; }
+.m-act-delete:active,.m-act-delete:hover { border-color:var(--red);color:var(--red);background:rgba(255,61,90,0.08); }
+.m-empty { text-align:center;padding:32px 16px;font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--muted2);letter-spacing:.1em; }
+
+/* ── ABOUT / SYSTEM ── */
+.m-about-card {
+  background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:10px;
+  position:relative;overflow:hidden;
+}
+.m-about-card::before { content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,229,255,0.25),transparent); }
+.m-about-row { display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(13,51,72,0.4); }
+.m-about-row:last-child { border-bottom:none;padding-bottom:0; }
+.m-about-key { font-family:'Share Tech Mono',monospace;font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted2); }
+.m-about-val { font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--cyan);text-align:right;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+
+.m-logout-btn {
+  width:100%;padding:14px;border-radius:12px;border:1px solid rgba(255,61,90,0.3);
+  background:rgba(255,61,90,0.08);color:var(--red);
+  font-family:'Exo 2',sans-serif;font-size:.85rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+  cursor:pointer;transition:all .2s;margin-top:8px;
+}
+.m-logout-btn:active { transform:scale(.97); }
+
+/* ── TOAST ── */
+#m-toast {
+  position:fixed;bottom:72px;left:50%;transform:translateX(-50%) translateY(8px);
+  padding:10px 20px;border-radius:10px;
+  font-family:'Share Tech Mono',monospace;font-size:.68rem;letter-spacing:.06em;
+  z-index:9999;opacity:0;transition:all .3s;pointer-events:none;white-space:nowrap;
+  border:1px solid rgba(0,255,136,0.3);background:rgba(0,255,136,0.12);color:var(--green);
+}
+#m-toast.show { opacity:1;transform:translateX(-50%) translateY(0); }
+
+/* ── SCAN ── */
+.m-scan { position:fixed;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(0,229,255,0.07),transparent);animation:scan 5s linear infinite;pointer-events:none;z-index:9998; }
+@keyframes scan{from{transform:translateY(-2px)}to{transform:translateY(100vh)}}
+</style>
+
+<div class="m-scan"></div>
+
+<!-- TOP BAR -->
+<div class="m-topbar">
+  <div class="m-topbar-logo">
+    <div class="m-topbar-logo-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#00e5ff" stroke-width="1.5" stroke-linecap="round">
+        <rect x="2" y="3" width="20" height="14" rx="2"/>
+        <path d="M8 21h8M12 17v4"/>
+        <polyline points="7 8 9 11 12 7 14 9 16 6"/>
+      </svg>
+    </div>
+    <div class="m-topbar-title">LiteGuard</div>
+  </div>
+  <div class="m-topbar-right">
+    <div class="m-live"><div class="m-pulse"></div>Live</div>
+    <div class="m-clock" id="m-clock">──:──:──</div>
+  </div>
+</div>
+
+<!-- SYSINFO BAR -->
+<div class="m-sysinfo-bar" id="m-sysinfo">Loading system info...</div>
+
+<!-- PAGES -->
+<div class="m-pages">
+
+  <!-- ── MONITOR PAGE ── -->
+  <div class="m-page active" id="m-page-monitor">
+
+    <!-- CPU + RAM Gauges -->
+    <div class="m-gauges-row">
+      <div class="m-gauge-card">
+        <div class="m-gauge-label">CPU</div>
+        <div class="m-gauge-svg">
+          <svg width="120" height="120" viewBox="0 0 120 120">
+            <circle fill="none" stroke="#0a2030" stroke-width="10" cx="60" cy="60" r="54"/>
+            <circle id="m-cpu-arc" fill="none" stroke="#00ff88" stroke-width="10" stroke-linecap="round"
+              cx="60" cy="60" r="54"
+              stroke-dasharray="339.3" stroke-dashoffset="339.3"
+              style="transition:stroke-dashoffset .8s,stroke .5s;filter:drop-shadow(0 0 8px #00ff88)"/>
+          </svg>
+          <div class="m-gauge-center">
+            <div class="m-gauge-val" id="m-cpu-val" style="color:#00ff88">─%</div>
+            <div class="m-gauge-sub">CPU</div>
+          </div>
+        </div>
+        <div class="m-gauge-detail" id="m-cores">─ cores</div>
+      </div>
+
+      <div class="m-gauge-card">
+        <div class="m-gauge-label">RAM</div>
+        <div class="m-gauge-svg">
+          <svg width="120" height="120" viewBox="0 0 120 120">
+            <circle fill="none" stroke="#0a2030" stroke-width="10" cx="60" cy="60" r="54"/>
+            <circle id="m-ram-arc" fill="none" stroke="#00e5ff" stroke-width="10" stroke-linecap="round"
+              cx="60" cy="60" r="54"
+              stroke-dasharray="339.3" stroke-dashoffset="339.3"
+              style="transition:stroke-dashoffset .8s,stroke .5s;filter:drop-shadow(0 0 8px #00e5ff)"/>
+          </svg>
+          <div class="m-gauge-center">
+            <div class="m-gauge-val" id="m-ram-val" style="color:#00e5ff">─%</div>
+            <div class="m-gauge-sub">RAM</div>
+          </div>
+        </div>
+        <div class="m-gauge-detail" id="m-ram-gb">─ / ─ GB</div>
+      </div>
+    </div>
+
+    <!-- CPU Sparkline -->
+    <div class="m-card">
+      <div class="m-card-title">CPU History</div>
+      <div class="m-spark-wrap">
+        <canvas id="m-sparkline" width="400" height="60"></canvas>
+      </div>
+    </div>
+
+    <!-- Resource Bars -->
+    <div class="m-card">
+      <div class="m-card-title">Resource Usage</div>
+      <div class="m-bar-row">
+        <div class="m-bar-header"><span class="m-bar-label">CPU Load</span><span class="m-bar-val" id="m-cpu-bar-val">─%</span></div>
+        <div class="m-bar-track"><div class="m-bar-fill" id="m-cpu-bar" style="width:0%;background:var(--green)"></div></div>
+      </div>
+      <div class="m-bar-row">
+        <div class="m-bar-header"><span class="m-bar-label">RAM Usage</span><span class="m-bar-val" id="m-ram-bar-val">─%</span></div>
+        <div class="m-bar-track"><div class="m-bar-fill" id="m-ram-bar" style="width:0%;background:var(--cyan)"></div></div>
+      </div>
+    </div>
+
+    <!-- Info Grid -->
+    <div class="m-card">
+      <div class="m-card-title">System Info</div>
+      <div class="m-info-grid">
+        <div class="m-info-item"><div class="m-info-val" id="m-uptime">─</div><div class="m-info-lbl">Uptime</div></div>
+        <div class="m-info-item"><div class="m-info-val" id="m-disk" style="font-size:.75rem;">─</div><div class="m-info-lbl">Disk</div></div>
+        <div class="m-info-item" style="grid-column:span 2;"><div class="m-info-val" id="m-load" style="font-size:.8rem;color:var(--secondary);">─</div><div class="m-info-lbl">Load Average (1/5/15m)</div></div>
+      </div>
+    </div>
+
+    <!-- Eco Status -->
+    <div class="m-card">
+      <div class="m-card-title">Eco Status</div>
+      <div class="m-eco-row">
+        <div class="m-eco-icon">🌿</div>
+        <div>
+          <div class="m-eco-status" id="m-eco-status">Scanning...</div>
+          <div class="m-eco-sub">Analyzing efficiency</div>
+        </div>
+      </div>
+      <div class="m-bar-track"><div class="m-bar-fill" id="m-eco-bar" style="width:0%;background:var(--green)"></div></div>
+      <div class="m-eco-score">Eco Score: <span id="m-eco-score" style="color:var(--cyan);">─/100</span></div>
+      <button class="m-opt-btn" onclick="mobileRamOptimize()">⚡ Optimize RAM</button>
+    </div>
+
+  </div>
+
+  <!-- ── PM2 PAGE ── -->
+  <div class="m-page" id="m-page-pm2">
+    <div class="m-pm2-header">
+      <div class="m-pm2-title">PM2 Processes</div>
+      <button class="m-refresh-btn" onclick="mobilePm2Load()">↻ Refresh</button>
+    </div>
+    <div id="m-pm2-list">
+      <div class="m-empty">Loading processes...</div>
+    </div>
+  </div>
+
+  <!-- ── SYSTEM PAGE ── -->
+  <div class="m-page" id="m-page-system">
+    <div class="m-about-card">
+      <div class="m-card-title">System Details</div>
+      <div class="m-about-row"><div class="m-about-key">Hostname</div><div class="m-about-val" id="m-sys-host">─</div></div>
+      <div class="m-about-row"><div class="m-about-key">Public IP</div><div class="m-about-val" id="m-sys-ip">─</div></div>
+      <div class="m-about-row"><div class="m-about-key">OS</div><div class="m-about-val" id="m-sys-os">─</div></div>
+      <div class="m-about-row"><div class="m-about-key">Kernel</div><div class="m-about-val" id="m-sys-kernel">─</div></div>
+      <div class="m-about-row"><div class="m-about-key">Node.js</div><div class="m-about-val" id="m-sys-node">─</div></div>
+      <div class="m-about-row"><div class="m-about-key">Architecture</div><div class="m-about-val" id="m-sys-arch">─</div></div>
+      <div class="m-about-row"><div class="m-about-key">CPU Cores</div><div class="m-about-val" id="m-sys-cores">─</div></div>
+      <div class="m-about-row"><div class="m-about-key">Total RAM</div><div class="m-about-val" id="m-sys-ram">─</div></div>
+    </div>
+
+    <div class="m-about-card">
+      <div class="m-card-title">Panel Info</div>
+      <div class="m-about-row"><div class="m-about-key">Version</div><div class="m-about-val">LiteGuard v3.0</div></div>
+      <div class="m-about-row"><div class="m-about-key">Panel Port</div><div class="m-about-val">3000</div></div>
+      <div class="m-about-row"><div class="m-about-key">Poll Rate</div><div class="m-about-val">2 seconds</div></div>
+    </div>
+
+    <button class="m-logout-btn" onclick="mobileLogout()">⏻ Logout</button>
+  </div>
+
+</div>
+
+<!-- NAVBAR -->
+<div class="m-navbar">
+  <button class="m-nav-btn active" id="m-nav-monitor" onclick="mobileShowPage('monitor')">
+    <div class="m-nav-icon">📊</div>Monitor
+  </button>
+  <button class="m-nav-btn" id="m-nav-pm2" onclick="mobileShowPage('pm2')">
+    <div class="m-nav-icon">⚙️</div>PM2
+  </button>
+  <button class="m-nav-btn" id="m-nav-system" onclick="mobileShowPage('system')">
+    <div class="m-nav-icon">🖥️</div>System
+  </button>
+</div>
+
+<div id="m-toast"></div>
+
+<script>
+// Load system info into system page
+async function mobileLoadSysInfoFull(){
+  try{
+    const d=await (await fetch('/api/sysinfo')).json();
+    document.getElementById('m-sys-host').textContent=d.hostname||'─';
+    document.getElementById('m-sys-ip').textContent=d.public_ip||'─';
+    document.getElementById('m-sys-os').textContent=d.os||'─';
+    document.getElementById('m-sys-kernel').textContent=d.kernel||'─';
+    document.getElementById('m-sys-node').textContent=d.node_version||'─';
+    document.getElementById('m-sys-arch').textContent=d.arch||'─';
+    document.getElementById('m-sysinfo').textContent=`${d.hostname} · ${d.public_ip} · ${d.os.split(' ').slice(0,2).join(' ')}`;
+  }catch{}
+  try{
+    const d=await (await fetch('/api/stats')).json();
+    document.getElementById('m-sys-cores').textContent=(d.cpu_cores||'─')+' cores';
+    document.getElementById('m-sys-ram').textContent=(d.ram_total_gb||'─')+' GB';
+    document.getElementById('m-disk').textContent=d.disk?`${d.disk.used}/${d.disk.total}(${d.disk.percent})`:'─';
+    document.getElementById('m-cores').textContent=(d.cpu_cores||'─')+' cores';
+  }catch{}
+}
+
+// Update bar vals from socket stats
+socket.on('stats',d=>{
+  const cpu=parseFloat(d.cpu_usage_percent);
+  const ram=parseFloat(d.ram_percent);
+  const cpuBV=document.getElementById('m-cpu-bar-val');
+  const ramBV=document.getElementById('m-ram-bar-val');
+  if(cpuBV)cpuBV.textContent=cpu.toFixed(1)+'%';
+  if(ramBV)ramBV.textContent=ram.toFixed(1)+'%';
+});
+
+window.addEventListener('DOMContentLoaded',mobileLoadSysInfoFull);
+</script>
+
+</div>
+
